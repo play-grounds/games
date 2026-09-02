@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Railway Model</title>
+<meta name="description" content="A tabletop voxel model railway: a steam express and a diesel freight run a mainline through a tunnel and over a viaduct, past a station, level crossings, a fairground and a farm. Throw the switches, pull the whistle, or open the throttle until something derails.">
+<meta name="theme-color" content="#15110c">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%82%3C/text%3E%3C/svg%3E">
+<link rel="canonical" href="https://play-grounds.github.io/games/railway/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="play-grounds games">
+<meta property="og:title" content="Railway Model">
+<meta property="og:description" content="A tabletop voxel model railway: a steam express and a diesel freight run a mainline through a tunnel and over a viaduct, past a station, level crossings, a fairground and a farm. Throw the switches, pull the whistle, or open the throttle until something derails.">
+<meta property="og:url" content="https://play-grounds.github.io/games/railway/">
+<meta property="og:image" content="https://play-grounds.github.io/games/railway/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A voxel model railway on a table: a steam train crossing a viaduct past a town, a fairground and hills">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Railway Model">
+<meta name="twitter:description" content="A tabletop voxel model railway with two trains, switches, a tunnel, a viaduct, level crossings, a fairground and derailments.">
+<meta name="twitter:image" content="https://play-grounds.github.io/games/railway/og.jpg">
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#15110c;font-family:Georgia,'Times New Roman',serif;color:#e8dcc4}
+  #c{display:block;width:100%;height:100%;touch-action:none}
+  #hud{position:fixed;left:12px;top:calc(12px + env(safe-area-inset-top));background:rgba(20,16,10,.7);border:1px solid #5a4a30;padding:8px 12px;font-size:12px;line-height:1.5;pointer-events:none;min-width:160px}
+  #hud b{color:#d9b85a;font-weight:normal;letter-spacing:.14em;font-size:13px}
+  #hud .v{color:#fff;float:right;font-family:monospace;margin-left:16px}
+  #panel{position:fixed;right:12px;top:12px;width:220px;background:rgba(20,16,10,.78);border:1px solid #5a4a30;padding:10px 12px;font-size:12px}
+  #panel h3{margin:0 0 6px;color:#d9b85a;font-size:13px;letter-spacing:.1em;font-weight:normal}
+  #panel label{display:block;margin:6px 0 2px;color:#c8b890}
+  #panel label span{float:right;color:#fff;font-family:monospace}
+  #panel input[type=range]{width:100%;margin:0;accent-color:#b8942e}
+  #panel .row{display:flex;gap:6px;align-items:center;margin-top:6px}
+  #panel .btns{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+  #panel button{background:#3a2e1c;color:#e8dcc4;border:1px solid #7a6440;padding:6px 6px;cursor:pointer;font-family:inherit;font-size:12px}
+  #panel button:hover{background:#5a4830}
+  #panel button.on{background:#7a5a20;color:#fff}
+  #keys{position:fixed;left:12px;bottom:12px;background:rgba(20,16,10,.7);border:1px solid #5a4a30;padding:8px 12px;font-size:11px;line-height:1.6;color:#c8b890;max-width:460px}
+  #keys kbd{background:#3a2e1c;border:1px solid #7a6440;padding:0 5px;border-radius:3px;color:#fff;font-family:monospace}
+  #status{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);color:#f0e0b0;font-size:14px;text-shadow:0 1px 3px #000;pointer-events:none;opacity:0;transition:opacity .4s;text-align:center;max-width:90vw}
+  #load{position:fixed;inset:0;background:#15110c;display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:10;color:#d9b85a;font-size:22px;letter-spacing:.2em}
+  #load small{font-size:12px;color:#8a7a5a;margin-top:10px;letter-spacing:.05em}
+  #panelToggle{display:none;position:fixed;right:12px;top:12px;z-index:3;background:rgba(20,16,10,.85);border:1px solid #7a6440;color:#d9b85a;font-family:inherit;font-size:13px;letter-spacing:.08em;padding:7px 10px}
+  #mobilebar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:3;gap:6px;justify-content:center;padding:8px 8px calc(8px + env(safe-area-inset-bottom));background:rgba(20,16,10,.78);border-top:1px solid #5a4a30}
+  #mobilebar button{flex:1;max-width:120px;background:#3a2e1c;color:#e8dcc4;border:1px solid #7a6440;padding:9px 4px;font-family:inherit;font-size:12px}
+  @media (pointer:coarse),(max-width:820px){
+    #keys{display:none} #panelToggle{display:block} #mobilebar{display:flex}
+    #panel{display:none;top:50px;width:min(220px,calc(100vw - 24px));max-height:calc(100vh - 140px);overflow:auto} #panel.open{display:block}
+    #hud{font-size:11px;padding:6px 10px;min-width:0} #status{bottom:calc(64px + env(safe-area-inset-bottom));font-size:13px}
+    body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="load">RAILWAY MODEL<small id="loadmsg">laying the baseboard…</small></div>
+<div id="hud"><b>RAILWAY MODEL</b><br>FPS <span class="v" id="hFps">0</span><br>Voxels <span class="v" id="hVox">0</span><br>Express <span class="v" id="hT1">0</span><br>Freight <span class="v" id="hT2">0</span><br>Time <span class="v" id="hTime">10:00</span></div>
+<button id="panelToggle" type="button">SIGNAL BOX ☰</button>
+<div id="panel">
+  <h3>SIGNAL BOX</h3>
+  <label>Throttle <span id="vThr">1.0</span></label><input type="range" id="sThr" min="0" max="2.5" step="0.05" value="1">
+  <label>Time of day <span id="vTime">10:00</span></label><input type="range" id="sTime" min="0" max="24" step="0.1" value="10">
+  <div class="row"><input type="checkbox" id="cAuto" checked><label style="margin:0">Clock runs</label></div>
+  <label>Sound <span id="vVol">0.3</span></label><input type="range" id="sVol" min="0" max="1" step="0.05" value="0.3">
+  <div class="btns"><button id="bSwA">Branch: main</button><button id="bSwC">Yard: through</button><button id="bWhistle">Whistle</button><button id="bReset">Re-rail trains</button></div>
+</div>
+<div id="keys"><kbd>drag</kbd> orbit &nbsp;<kbd>wheel</kbd> zoom &nbsp;<kbd>right-drag</kbd> pan &nbsp;<kbd>click train</kbd> follow &nbsp;<kbd>Space</kbd> cinematic &nbsp;<kbd>1</kbd> branch switch &nbsp;<kbd>2</kbd> yard switch &nbsp;<kbd>W</kbd> whistle &nbsp;<kbd>R</kbd> re-rail &nbsp;<kbd>Esc</kbd> unfollow &nbsp;<kbd>H</kbd> hide UI</div>
+<div id="mobilebar"><button id="mbCine" type="button">Cinematic</button><button id="mbSwA" type="button">Branch</button><button id="mbWhistle" type="button">Whistle</button><button id="mbReset" type="button">Re-rail</button><button id="mbFollow" type="button">Unfollow</button></div>
+<div id="status"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+/* =====================================================================================
+   RAILWAY MODEL — a tabletop voxel model railway with routed trains, switches, signals, crossings and derailments.
+   Single file, Three.js r128 (pinned), no build step, no external assets.
+   Copyright (C) 2026 Melvin Carvalho. Licensed under the GNU AGPL v3.0 or later.
+
+   SYSTEMS:
+     CONFIG / UTIL   sizes, palette, rng, noise
+     VOXELS          sparse voxel sets with face culling + vertex AO
+     TRACK           splines with arc-length tables, junctions, merges, switches
+     TERRAIN         board heightfield conformed to the track: cuttings, embankments, tunnel bore, viaduct piers
+     SCENERY         town, station, church, fairground, farm, trees, roads, room
+     TRAINS          vehicles on the track graph, block signalling, station dwell, derail physics
+     TRAFFIC         cars on the road loop, level crossings
+     INPUT / SOUND / LOOP
+   ===================================================================================== */
+
+// ==== CONFIG ========================================================================
+const CFG = { seed: 11, board: { hx: 66, hz: 46 }, ws: 0.5, dayLengthSec: 300, speed: 7 };
+
+// ==== UTIL ==========================================================================
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+let rng = mulberry32(CFG.seed);
+const rnd = (a = 1, b) => b === undefined ? rng() * a : a + rng() * (b - a);
+const rint = (a, b) => Math.floor(rnd(a, b + 1));
+const pick = arr => arr[Math.floor(rng() * arr.length)];
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = t => t * t * (3 - 2 * t);
+const sstep = (a, b, v) => smooth(clamp((v - a) / (b - a), 0, 1));
+const TAU = Math.PI * 2;
+function hash3(x, y, z) { let h = (x * 374761393 + y * 668265263 + z * 2147483647) | 0; h = (h ^ (h >> 13)) * 1274126177; return ((h ^ (h >> 16)) >>> 0) / 4294967296; }
+class Perlin { constructor(r) { this.p = new Uint8Array(512); const perm = []; for (let i = 0; i < 256; i++) perm[i] = i; for (let i = 255; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [perm[i], perm[j]] = [perm[j], perm[i]]; } for (let i = 0; i < 512; i++) this.p[i] = perm[i & 255]; }
+  grad(h, x, y) { switch (h & 7) { case 0: return x + y; case 1: return -x + y; case 2: return x - y; case 3: return -x - y; case 4: return x; case 5: return -x; case 6: return y; default: return -y; } }
+  n(x, y) { const X = Math.floor(x) & 255, Y = Math.floor(y) & 255; x -= Math.floor(x); y -= Math.floor(y); const u = smooth(x), v = smooth(y), p = this.p; const A = p[X] + Y, B = p[X + 1] + Y; return lerp(lerp(this.grad(p[A], x, y), this.grad(p[B], x - 1, y), u), lerp(this.grad(p[A + 1], x, y - 1), this.grad(p[B + 1], x - 1, y - 1), u), v); }
+  fbm(x, y, o = 3) { let a = 1, f = 1, s = 0, n = 0; for (let i = 0; i < o; i++) { s += a * this.n(x * f, y * f); n += a; a *= 0.5; f *= 2; } return s / n; } }
+const noise = new Perlin(rng);
+const $ = id => document.getElementById(id);
+function status(msg) { const el = $('status'); el.textContent = msg; el.style.opacity = 1; clearTimeout(status.tm); status.tm = setTimeout(() => el.style.opacity = 0, 3000); }
+const IS_MOBILE = matchMedia('(pointer: coarse)').matches || (navigator.maxTouchPoints > 1 && innerWidth < 900);
+
+// ==== VOXELS ========================================================================
+class VoxelSet {
+  constructor(scale) { this.s = scale; this.m = new Map(); this.count = 0; }
+  key(x, y, z) { return ((x + 512) * 1024 + (y + 512)) * 1024 + (z + 512); }
+  set(x, y, z, c, e = 0) { const k = this.key(x, y, z); if (!this.m.has(k)) this.count++; this.m.set(k, { x, y, z, c, e }); }
+  has(x, y, z) { return this.m.has(this.key(x, y, z)); }
+  del(x, y, z) { if (this.m.delete(this.key(x, y, z))) this.count--; }
+  build(flat = false) {
+    const pos = [], nrm = [], col = [], emit = [], idx = []; const s = this.s;
+    const FACES = [ // normal, 4 corners (unit cube), the two tangent axes for AO
+      { n: [1, 0, 0], v: [[1, 0, 0], [1, 1, 0], [1, 1, 1], [1, 0, 1]], sh: 0.86 }, { n: [-1, 0, 0], v: [[0, 0, 1], [0, 1, 1], [0, 1, 0], [0, 0, 0]], sh: 0.78 },
+      { n: [0, 1, 0], v: [[0, 1, 0], [0, 1, 1], [1, 1, 1], [1, 1, 0]], sh: 1.0 }, { n: [0, -1, 0], v: [[0, 0, 1], [0, 0, 0], [1, 0, 0], [1, 0, 1]], sh: 0.5 },
+      { n: [0, 0, 1], v: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], sh: 0.9 }, { n: [0, 0, -1], v: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]], sh: 0.74 }];
+    const solid = (x, y, z) => this.m.has(this.key(x, y, z)) ? 1 : 0;
+    for (const v of this.m.values()) {
+      const jit = 0.92 + 0.16 * hash3(v.x, v.y, v.z);
+      for (const f of FACES) {
+        const nx = v.x + f.n[0], ny = v.y + f.n[1], nz = v.z + f.n[2]; if (solid(nx, ny, nz)) continue;
+        const b = pos.length / 3;
+        for (let k = 0; k < 4; k++) { const c = f.v[k]; pos.push((v.x + c[0]) * s, (v.y + c[1]) * s, (v.z + c[2]) * s); nrm.push(f.n[0], f.n[1], f.n[2]);
+          // AO: the two edge neighbours and the corner neighbour on the open side of this vertex
+          const dx = c[0] ? 1 : -1, dy = c[1] ? 1 : -1, dz = c[2] ? 1 : -1; let s1, s2, cc;
+          if (f.n[0]) { s1 = solid(nx, ny + dy, nz); s2 = solid(nx, ny, nz + dz); cc = solid(nx, ny + dy, nz + dz); } else if (f.n[1]) { s1 = solid(nx + dx, ny, nz); s2 = solid(nx, ny, nz + dz); cc = solid(nx + dx, ny, nz + dz); } else { s1 = solid(nx + dx, ny, nz); s2 = solid(nx, ny + dy, nz); cc = solid(nx + dx, ny + dy, nz); }
+          const ao = (s1 && s2) ? 0 : 3 - (s1 + s2 + cc); const a = flat ? 0.94 + 0.06 * jit : [0.5, 0.68, 0.85, 1][ao] * f.sh * jit;
+          col.push(v.c[0] * a, v.c[1] * a, v.c[2] * a); emit.push(v.e); }
+        idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+      }
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('aEmit', new THREE.Float32BufferAttribute(emit, 1)); g.setIndex(idx); g.computeBoundingSphere(); return g;
+  }
+}
+const C = {
+  grass: [[0.38, 0.62, 0.28], [0.34, 0.58, 0.26], [0.42, 0.66, 0.3]], dirt: [0.5, 0.36, 0.22], rock: [0.5, 0.48, 0.45], rock2: [0.42, 0.4, 0.38], sand: [0.8, 0.72, 0.5], ballast: [0.55, 0.53, 0.5], road: [0.32, 0.32, 0.34], roadLine: [0.9, 0.9, 0.8],
+  water: [0.25, 0.5, 0.7], snow: [0.95, 0.95, 0.97], trunk: [0.4, 0.27, 0.15], leaf: [[0.25, 0.5, 0.22], [0.32, 0.58, 0.25], [0.45, 0.6, 0.2]], pine: [0.18, 0.4, 0.22],
+  brick: [0.6, 0.3, 0.22], brick2: [0.5, 0.25, 0.2], plaster: [0.9, 0.86, 0.75], stone: [0.62, 0.6, 0.56], slate: [0.32, 0.34, 0.4], tile: [0.7, 0.32, 0.22], window: [0.95, 0.85, 0.55], door: [0.3, 0.2, 0.12], wood: [0.55, 0.38, 0.2],
+  platform: [0.7, 0.68, 0.62], canopy: [0.35, 0.45, 0.35], iron: [0.2, 0.2, 0.22], white: [0.95, 0.95, 0.93], red: [0.8, 0.15, 0.12], yellow: [0.95, 0.8, 0.2], blue: [0.15, 0.3, 0.6], green: [0.15, 0.45, 0.2], maroon: [0.45, 0.12, 0.15], cream: [0.9, 0.85, 0.7],
+  barn: [0.7, 0.2, 0.15], silo: [0.75, 0.75, 0.72], cow: [0.95, 0.95, 0.92], cowSpot: [0.15, 0.12, 0.1], hay: [0.8, 0.68, 0.3], field: [[0.75, 0.62, 0.3], [0.45, 0.35, 0.2], [0.3, 0.55, 0.25]], tent: [[0.85, 0.2, 0.2], [0.95, 0.95, 0.9], [0.2, 0.35, 0.7], [0.95, 0.8, 0.2]],
+  table: [0.38, 0.24, 0.14], table2: [0.33, 0.2, 0.12], floor: [0.25, 0.2, 0.16], wall: [0.55, 0.52, 0.45], skin: [0.85, 0.66, 0.5], smoke: [0.6, 0.6, 0.62], steam: [0.92, 0.92, 0.94], lamp: [1, 0.85, 0.5], carCols: [[0.8, 0.2, 0.15], [0.2, 0.4, 0.75], [0.9, 0.85, 0.3], [0.2, 0.55, 0.3], [0.9, 0.9, 0.88], [0.4, 0.25, 0.5]]
+};
+
+// ==== RENDER ========================================================================
+const canvas = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !IS_MOBILE, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, IS_MOBILE ? 1 : 1.5)); renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = !IS_MOBILE; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x1a1610);
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.2, 600);
+const sun = new THREE.DirectionalLight(0xfff2dc, 1.0); sun.position.set(40, 70, 30); sun.castShadow = !IS_MOBILE; sun.shadow.mapSize.set(2048, 2048); sun.shadow.camera.near = 20; sun.shadow.camera.far = 220; const SB = 80; sun.shadow.camera.left = -SB; sun.shadow.camera.right = SB; sun.shadow.camera.top = SB; sun.shadow.camera.bottom = -SB; sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.4; scene.add(sun); scene.add(sun.target);
+const hemi = new THREE.HemisphereLight(0xa8c0e0, 0x4a3a28, 0.55); scene.add(hemi);
+const ambient = new THREE.AmbientLight(0x303040, 0.35); scene.add(ambient);
+const headLight = new THREE.PointLight(0xfff0c0, 0, 22, 2); scene.add(headLight);
+const shaderU = { uNight: { value: 0 }, uTime: { value: 0 } };
+function voxMaterial(extra = {}) {
+  const m = new THREE.MeshPhongMaterial(Object.assign({ vertexColors: true, shininess: 8, specular: 0x222222 }, extra));
+  m.onBeforeCompile = sh => { sh.uniforms.uNight = shaderU.uNight; sh.uniforms.uTime = shaderU.uTime;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aEmit; varying float vEmit;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvEmit = aEmit;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vEmit; uniform float uNight; uniform float uTime;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\nif (vEmit > 0.5) { float fl = 0.9 + 0.1 * sin(uTime * 6.0 + vEmit * 11.0); totalEmissiveRadiance += (vEmit > 1.5 ? vec3(1.0, 0.6, 0.2) : vec3(1.0, 0.75, 0.35) * uNight) * fl; }'); };
+  return m;
+}
+const voxMat = voxMaterial();
+/* ---- instanced pools for everything that moves ---- */
+class BoxPool {
+  constructor(max, material, shadows = false) { this.mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), material, max); this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.mesh.frustumCulled = false; this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(max * 3), 3); this.mesh.instanceColor.setUsage(THREE.DynamicDrawUsage); this.mesh.castShadow = shadows; this.mesh.receiveShadow = shadows; this.max = max; this.n = 0; this.a = this.mesh.instanceMatrix.array; this.c = this.mesh.instanceColor.array; scene.add(this.mesh); }
+  begin() { this.n = 0; }
+  box(x, y, z, sx, sy, sz, c) { if (this.n >= this.max) return; const i = this.n++, a = this.a, o = i * 16; a[o] = sx; a[o + 1] = 0; a[o + 2] = 0; a[o + 3] = 0; a[o + 4] = 0; a[o + 5] = sy; a[o + 6] = 0; a[o + 7] = 0; a[o + 8] = 0; a[o + 9] = 0; a[o + 10] = sz; a[o + 11] = 0; a[o + 12] = x; a[o + 13] = y; a[o + 14] = z; a[o + 15] = 1; const k = i * 3; this.c[k] = c[0]; this.c[k + 1] = c[1]; this.c[k + 2] = c[2]; }
+  rbox(x, y, z, sx, sy, sz, yaw, pitch, roll, c) { if (this.n >= this.max) return; const i = this.n++, a = this.a, o = i * 16; const cy = Math.cos(yaw), sy_ = Math.sin(yaw), cx = Math.cos(pitch), sx_ = Math.sin(pitch), cz = Math.cos(roll), sz_ = Math.sin(roll);
+    const r00 = cy * cz + sy_ * sx_ * sz_, r01 = -cy * sz_ + sy_ * sx_ * cz, r02 = sy_ * cx, r10 = cx * sz_, r11 = cx * cz, r12 = -sx_, r20 = -sy_ * cz + cy * sx_ * sz_, r21 = sy_ * sz_ + cy * sx_ * cz, r22 = cy * cx;
+    a[o] = r00 * sx; a[o + 1] = r10 * sx; a[o + 2] = r20 * sx; a[o + 3] = 0; a[o + 4] = r01 * sy; a[o + 5] = r11 * sy; a[o + 6] = r21 * sy; a[o + 7] = 0; a[o + 8] = r02 * sz; a[o + 9] = r12 * sz; a[o + 10] = r22 * sz; a[o + 11] = 0; a[o + 12] = x; a[o + 13] = y; a[o + 14] = z; a[o + 15] = 1; const k = i * 3; this.c[k] = c[0]; this.c[k + 1] = c[1]; this.c[k + 2] = c[2]; }
+  /* box placed in a parent frame (position + yaw/pitch/roll) */
+  end() { this.mesh.count = this.n; this.mesh.instanceMatrix.needsUpdate = true; this.mesh.instanceColor.needsUpdate = true; }
+}
+const dynMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+const glowMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthWrite: false });
+const sprayMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
+const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false });
+
+/* frame helper for drawing rigid assemblies (ship parts, creatures) */
+const F = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0 };
+const _M = new THREE.Matrix4(), _E = new THREE.Euler(), _V = new THREE.Vector3(), _Q = new THREE.Quaternion();
+/* yaw about Y, rx about X, rz about Z (the hull runs along X, so the ship's pitch is rz and its roll is rx) */
+function setFrame(x, y, z, yaw, rx, rz) { F.x = x; F.y = y; F.z = z; F.yaw = yaw; F.pitch = rx; F.roll = rz; _E.set(rx, yaw, rz, 'YXZ'); _Q.setFromEuler(_E); }
+function toWorld(lx, ly, lz) { _V.set(lx, ly, lz).applyQuaternion(_Q); _V.x += F.x; _V.y += F.y; _V.z += F.z; return _V; }
+function part(pool, lx, ly, lz, sx, sy, sz, c) { const p = toWorld(lx, ly, lz); pool.rbox(p.x, p.y, p.z, sx, sy, sz, F.yaw, F.pitch, F.roll, c); }
+
+
+
+// ==== TRACK =========================================================================
+/* Each track is a spline sampled into an arc-length table. Trains carry (track, s) plus a short history of the tracks they
+   came from, so the vehicles behind the loco can still sit on the previous track through a junction. */
+class Track {
+  constructor(name, pts, closed) { this.name = name; this.closed = closed; this.curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(p[0], p[1], p[2])), closed, 'centripetal'); const n = Math.max(200, Math.round(this.curve.getLength() / 0.25)); this.pts = this.curve.getSpacedPoints(n); this.len = 0; this.cum = [0]; for (let i = 1; i < this.pts.length; i++) { this.len += this.pts[i].distanceTo(this.pts[i - 1]); this.cum.push(this.len); } this.junctions = []; this.mergeTo = null; }
+  at(s, out) { if (this.closed) { s = ((s % this.len) + this.len) % this.len; } else s = clamp(s, 0, this.len - 0.001); const n = this.pts.length - 1; const f = s / this.len * n; let i = Math.floor(f); if (i >= n) i = n - 1; const t = f - i; const a = this.pts[i], b = this.pts[i + 1]; out.set(lerp(a.x, b.x, t), lerp(a.y, b.y, t), lerp(a.z, b.z, t)); return out; }
+  /* arc distance from the sample nearest a world point */
+  nearestS(x, z) { let best = 0, bd = 1e9; for (let i = 0; i < this.pts.length; i++) { const d = (this.pts[i].x - x) ** 2 + (this.pts[i].z - z) ** 2; if (d < bd) { bd = d; best = i; } } return { s: this.cum[best], d: Math.sqrt(bd), y: this.pts[best].y }; }
+}
+const tracks = {}, switches = { A: false, C: false };
+function buildTracks() {
+  tracks.main = new Track('main', [[-50, 2.5, -25], [-22, 2.5, -32], [20, 2.5, -30.5], [46, 2.5, -18], [53, 5.0, 8], [40, 8.0, 28], [8, 8.0, 34], [-24, 4.5, 30], [-46, 2.5, 16], [-57, 2.5, -6]], true);
+  tracks.branch = new Track('branch', [[30.5, 2.5, -27], [35, 2.5, -21], [30, 2.5, -5], [10, 2.5, 8], [-14, 2.5, 11], [-40, 2.5, 8], [-49, 2.5, 13], [-53, 2.6, 4]], false);
+  tracks.yard = new Track('yard', [[31.5, 2.5, -13], [30, 2.5, -8], [24, 2.5, 1], [14, 2.5, 4.5], [4, 2.5, 5.5], [-6, 2.5, 8.5], [-14, 2.5, 11.5]], false);
+  // junctions: where a train may leave one track for another; merges: where an open track rejoins
+  const mA = tracks.main.nearestS(32, -26.5); tracks.main.junctions.push({ s: mA.s, to: tracks.branch, sw: 'A' });
+  const bB = tracks.main.nearestS(-52, 2); tracks.branch.mergeTo = { track: tracks.main, s: bB.s };
+  const bC = tracks.branch.nearestS(32.5, -13); tracks.branch.junctions.push({ s: bC.s, to: tracks.yard, sw: 'C' });
+  const yD = tracks.branch.nearestS(-14, 11); tracks.yard.mergeTo = { track: tracks.branch, s: yD.s };
+  for (const t of Object.values(tracks)) t.junctions.sort((a, b) => a.s - b.s);
+}
+
+// ==== TERRAIN =======================================================================
+const WS = CFG.ws, HX = CFG.board.hx, HZ = CFG.board.hz; const NX = Math.round(HX * 2 / WS), NZ = Math.round(HZ * 2 / WS);
+const H = new Float32Array(NX * NZ), trackD = new Float32Array(NX * NZ).fill(99), trackY = new Float32Array(NX * NZ), trackMode = new Uint8Array(NX * NZ), roadD = new Float32Array(NX * NZ).fill(99), surfKind = new Uint8Array(NX * NZ);
+const gi = (x, z) => (clamp(Math.round((x + HX) / WS), 0, NX - 1)) * NZ + clamp(Math.round((z + HZ) / WS), 0, NZ - 1);
+const cellX = i => Math.floor(i / NZ) * WS - HX, cellZ = i => (i % NZ) * WS - HZ;
+const world = new VoxelSet(WS); const wv = (x, y, z, c, e) => world.set(Math.round(x / WS), Math.round(y / WS), Math.round(z / WS), c, e);
+const waterSet = new VoxelSet(WS);
+function riverZ(x) { return 33 + 3.5 * Math.sin(x * 0.09 + 1) + 1.5 * Math.sin(x * 0.23); }
+const lake = { x: 37, z: 18, rx: 9, rz: 6.5 };
+function natural(x, z) {
+  let h = 2.2 + noise.fbm(x * 0.05, z * 0.05, 3) * 1.4 + noise.fbm(x * 0.2, z * 0.2, 2) * 0.35;
+  h += 10.5 * sstep(15, 3, Math.hypot(x + 52, z + 8));                        // west hill: the tunnel goes through this
+  h += 6 * sstep(15, 4, Math.hypot((x - 48) * 0.9, z + 40));                 // north-east hills
+  h += 6 * sstep(17, 5, Math.hypot(x + 46, (z - 32) * 1.2));                 // south-west hills
+  const dr = Math.abs(z - riverZ(x)); h = lerp(-0.2, h, sstep(3.2, 8, dr)); // river valley
+  const dl = Math.hypot((x - lake.x) / lake.rx, (z - lake.z) / lake.rz); h = lerp(-0.2, h, sstep(0.85, 1.35, dl));
+  return h;
+}
+const roadPts = [[-5, -46], [-5, -31.8], [-5, -14], [-25, -12], [-30, -31.5], [-30, -46], [-5, -46]]; const stationX = [8, 32];
+function buildTerrain() {
+  for (let i = 0; i < NX * NZ; i++) H[i] = natural(cellX(i), cellZ(i));
+  // stamp track distance / height / mode onto the grid
+  for (const t of Object.values(tracks)) for (let k = 0; k < t.pts.length; k += 2) { const p = t.pts[k]; const nat = natural(p.x, p.z); const mode = p.y > nat + 2.2 ? 3 : nat > p.y + 3.6 ? 2 : 1;   // 1 ground/cut, 2 tunnel, 3 viaduct
+    for (let dx = -7; dx <= 7; dx += WS) for (let dz = -7; dz <= 7; dz += WS) { const d = Math.hypot(dx, dz); const i = gi(p.x + dx, p.z + dz); if (d < trackD[i]) { trackD[i] = d; trackY[i] = p.y; trackMode[i] = mode; } } }
+  for (let k = 0; k < roadPts.length - 1; k++) { const [ax, az] = roadPts[k], [bx, bz] = roadPts[k + 1]; const L = Math.hypot(bx - ax, bz - az); for (let s = 0; s <= L; s += WS / 2) { const px = ax + (bx - ax) * s / L, pz = az + (bz - az) * s / L; for (let dx = -3; dx <= 3; dx += WS) for (let dz = -3; dz <= 3; dz += WS) { const i = gi(px + dx, pz + dz); roadD[i] = Math.min(roadD[i], Math.hypot(dx, dz)); } } }
+  // conform: cuttings and embankments blend to the rail height; tunnels keep the hill; viaducts keep the valley
+  for (let i = 0; i < NX * NZ; i++) { const d = trackD[i], m = trackMode[i]; if (d > 6) continue; const ty = trackY[i] - 0.55;
+    if (m === 1) { const w = sstep(5.5, 1.8, d); H[i] = lerp(H[i], ty, w); } else if (m === 2) { if (d < 1.8) H[i] = Math.max(H[i], ty + 4.5); } else if (m === 3) { /* leave the valley */ }
+    if (roadD[i] < 2.2) { /* roads follow the land */ } }
+  // fill columns
+  for (let ix = 0; ix < NX; ix++) for (let iz = 0; iz < NZ; iz++) { const i = ix * NZ + iz; const x = cellX(i), z = cellZ(i); const h = H[i];
+    let minN = h; for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const jx = ix + dx, jz = iz + dz; if (jx >= 0 && jz >= 0 && jx < NX && jz < NZ) minN = Math.min(minN, H[jx * NZ + jz]); }
+    const top = Math.floor(h / WS) * WS, bottom = Math.max(0, Math.floor(minN / WS) * WS - WS);
+    const slope = Math.abs(h - minN); const kx = Math.round(x / WS), kz = Math.round(z / WS);
+    let surf; if (h < 0.35) surf = C.sand; else if (trackD[i] < 1.5 && trackMode[i] !== 3 && trackMode[i] !== 2) surf = C.ballast; else if (roadD[i] < 1.6) surf = C.road; else if (roadD[i] < 1.75 && (Math.round((x + z) / WS) & 3) === 0) surf = C.roadLine; else if (h > 11 && slope < 1.2) surf = C.snow; else if (slope > 1.6 || h > 9) surf = hash3(kx, 1, kz) < 0.5 ? C.rock : C.rock2; else if (h < 0.9) surf = C.sand; else surf = C.grass[Math.floor(hash3(kx, 2, kz) * 3)];
+    if (roadD[i] < 1.6) surfKind[i] = 2; else if (trackD[i] < 1.5) surfKind[i] = 1;
+    for (let y = bottom; y <= top; y += WS) wv(x, y, z, y >= top - WS * 0.5 ? surf : (y > top - 1.5 ? C.dirt : C.rock2));
+    if (h < 0.4) waterSet.set(kx, Math.round(0.4 / WS), kz, C.water);
+  }
+  // tunnel bore + stone portals
+  const t = tracks.main; let inTunnel = false; const v = new THREE.Vector3(), v2 = new THREE.Vector3();
+  for (let s = 0; s < t.len; s += 0.5) { t.at(s, v); const i = gi(v.x, v.z); const tun = trackMode[i] === 2 && trackD[i] < 1;
+    if (tun) { for (let dx = -2.5; dx <= 2.5; dx += WS) for (let dy = 0; dy <= 3.2; dy += WS) for (let dz = -2.5; dz <= 2.5; dz += WS) { if (Math.hypot(dx, dz) > 2.4 - (dy > 2 ? (dy - 2) * 0.9 : 0)) continue; world.del(Math.round((v.x + dx) / WS), Math.round((v.y - 0.5 + dy) / WS), Math.round((v.z + dz) / WS)); } }
+    if (tun !== inTunnel) { // portal ring
+      t.at(s + (tun ? -0.5 : 0.5), v2); const tx = v.x - v2.x, tz = v.z - v2.z, L = Math.hypot(tx, tz) || 1; const nx = -tz / L, nz = tx / L;
+      for (let a = -3.4; a <= 3.4; a += WS / 2) for (let dy = 0; dy <= 4.2; dy += WS / 2) { const r = Math.hypot(a, Math.max(0, dy - 1.6)); if (r > 3.4 || (r < 2.5 && dy < 3.6 && Math.abs(a) < 2.5)) continue; wv(v.x + nx * a, v.y - 0.5 + dy, v.z + nz * a, hash3(Math.round(a * 4), Math.round(dy * 4), 0) < 0.5 ? C.stone : C.rock); }
+      inTunnel = tun; }
+  }
+  // viaduct piers and parapets
+  for (const tr of Object.values(tracks)) { let nextPier = 0; for (let s = 0; s < tr.len; s += 0.5) { tr.at(s, v); const i = gi(v.x, v.z); if (trackMode[i] !== 3) continue; tr.at(s + 0.5, v2); const tx = v2.x - v.x, tz = v2.z - v.z, L = Math.hypot(tx, tz) || 1; const nx = -tz / L, nz = tx / L;
+    for (const side of [-1.6, 1.6]) wv(v.x + nx * side, v.y - 0.35, v.z + nz * side, C.stone);
+    if (s >= nextPier) { nextPier = s + 5; const gy = natural(v.x, v.z); for (let y = Math.max(-0.5, gy - 0.5); y < v.y - 0.6; y += WS) for (let a = -1.2; a <= 1.2; a += WS) for (let b = -0.9; b <= 0.9; b += WS) wv(v.x + nx * a + tx / L * b, y, v.z + nz * a + tz / L * b, hash3(Math.round(a * 3), Math.round(y * 2), Math.round(b * 3)) < 0.5 ? C.stone : C.rock); } } }
+}
+
+// ==== SCENERY =======================================================================
+const chimneys = [], streetLamps = [], trees = [];
+function groundAt(x, z) { return H[gi(x, z)]; }
+function house(x0, z0, w, d, o = {}) {
+  let g = -1; for (let x = x0; x <= x0 + w; x += WS) for (let z = z0; z <= z0 + d; z += WS) g = Math.max(g, groundAt(x, z)); g = Math.floor(g / WS) * WS + WS;
+  const wallH = o.h || 3, wallC = o.wall || pick([C.brick, C.plaster, C.brick2, C.stone]), roofC = o.roof || pick([C.slate, C.tile, C.slate]);
+  for (let x = x0; x <= x0 + w; x += WS) for (let z = z0; z <= z0 + d; z += WS) { for (let y = groundAt(x, z); y < g; y += WS) wv(x, y, z, C.stone); const edge = x <= x0 + 0.01 || x >= x0 + w - 0.01 || z <= z0 + 0.01 || z >= z0 + d - 0.01; for (let y = g; y <= g + wallH; y += WS) { if (!edge) continue; const win = ((y - g) === 1.5 || (y - g) === 1.0) && ((x <= x0 + 0.01 || x >= x0 + w - 0.01) ? Math.round((z - z0) / WS) % 4 === 2 : Math.round((x - x0) / WS) % 4 === 2) && !(x <= x0 + 0.01 && z <= z0 + 0.01); wv(x, y, z, win ? C.window : wallC, win ? 1 : 0); } }
+  wv(x0 + Math.floor(w / 2 / WS) * WS, g, z0 + d, C.door); wv(x0 + Math.floor(w / 2 / WS) * WS, g + WS, z0 + d, C.door);
+  const alongX = w >= d; const n = Math.ceil((alongX ? d : w) / WS / 2) + 1;
+  for (let j = 0; j < n; j++) { const y = g + wallH + WS + j * WS; if (alongX) { const za = z0 - WS + j * WS, zb = z0 + d + WS - j * WS; if (za > zb) break; for (let x = x0 - WS; x <= x0 + w + WS; x += WS) { wv(x, y, za, roofC); wv(x, y, zb, roofC); if ((x <= x0 + 0.01 || x >= x0 + w - 0.01)) for (let z = za + WS; z < zb; z += WS) wv(x, y, z, wallC); } } else { const xa = x0 - WS + j * WS, xb = x0 + w + WS - j * WS; if (xa > xb) break; for (let z = z0 - WS; z <= z0 + d + WS; z += WS) { wv(xa, y, z, roofC); wv(xb, y, z, roofC); if ((z <= z0 + 0.01 || z >= z0 + d - 0.01)) for (let x = xa + WS; x < xb; x += WS) wv(x, y, z, wallC); } } }
+  const ch = [x0 + w - WS, g + wallH + n * WS + 0.5, z0 + WS]; for (let y = g + wallH; y <= ch[1]; y += WS) wv(ch[0], y, ch[2], C.brick2); if (!o.noSmoke) chimneys.push(ch);
+  return g;
+}
+function tree(x, z, kind) { const g = Math.floor(groundAt(x, z) / WS) * WS + WS; if (kind === 'pine') { const h = rnd(3, 5); for (let y = 0; y < h; y += WS) wv(x, g + y, z, C.trunk); for (let y = 1; y <= h + 0.5; y += WS) { const r = Math.max(0.3, (h + 0.5 - y) * 0.45); for (let dx = -r; dx <= r; dx += WS) for (let dz = -r; dz <= r; dz += WS) if (Math.hypot(dx, dz) <= r + 0.1) wv(x + dx, g + y, z + dz, C.pine); } } else { const h = rnd(1.5, 3), r = rnd(1, 1.6), c = pick(C.leaf); for (let y = 0; y < h; y += WS) wv(x, g + y, z, C.trunk); for (let dx = -r; dx <= r; dx += WS) for (let dy = -r; dy <= r; dy += WS) for (let dz = -r; dz <= r; dz += WS) if (Math.hypot(dx, dy * 1.2, dz) <= r + 0.15 * hash3(dx * 7, dy * 3, dz * 5)) wv(x + dx, g + h + dy, z + dz, c); } trees.push([x, z]); }
+function lampPost(x, z) { const g = Math.floor(groundAt(x, z) / WS) * WS + WS; for (let y = 0; y < 2.5; y += WS) wv(x, g + y, z, C.iron); wv(x, g + 2.5, z, C.lamp, 1); streetLamps.push([x, g + 2.5, z]); }
+const station = { x0: 8, x1: 32, z: -33.2, y: 0, doorsAt: [] }, fair = { x: -14, z: -4 }, farm = { x: -34, z: 4 }, church = { x: 22, z: -41 };
+function buildScenery() {
+  // town north of the line
+  for (let x = -38; x <= 48; x += rint(6, 9)) { if (Math.abs(x + 5) < 4 || Math.abs(x + 30) < 4) continue; const w = rnd(3, 5), d = rnd(3, 4.5); if (x > 4 && x < 36) continue; house(x, -40 - rnd(0, 2), w, d); }
+  for (let x = -38; x <= 48; x += rint(7, 10)) { if (Math.abs(x + 5) < 4 || Math.abs(x + 30) < 4) continue; if (x > 8 && x < 34) continue; house(x, -45.5, rnd(3, 4.5), 3); }
+  // church with tower and spire
+  { const g = house(church.x, church.z, 6, 4, { wall: C.stone, roof: C.slate, h: 4, noSmoke: true }); const tx = church.x - 3, tz = church.z + 0.5; for (let y = g; y < g + 9; y += WS) for (let dx = 0; dx <= 2; dx += WS) for (let dz = 0; dz <= 2; dz += WS) if (dx === 0 || dx === 2 || dz === 0 || dz === 2) wv(tx + dx, y, tz + dz, C.stone); for (let k = 0; k <= 4; k++) for (let dx = -0.5 + k * WS / 2; dx <= 2.5 - k * WS / 2; dx += WS) for (let dz = -0.5 + k * WS / 2; dz <= 2.5 - k * WS / 2; dz += WS) wv(tx + dx, g + 9 + k * WS, tz + dz, C.slate); wv(tx + 1, g + 7, tz + 2.5, C.white); wv(tx + 1, g + 6.5, tz + 2.5, C.white); wv(tx + 1, g + 7.5, tz + 2.5, C.white); church.bell = [tx + 1, g + 8, tz + 1]; }
+  // station: platform, building, canopy, name board, lamps
+  { const z = station.z, g = Math.floor(groundAt(20, z) / WS) * WS + WS; station.y = g + 0.5; for (let x = station.x0; x <= station.x1; x += WS) for (let dz = 0; dz <= 2.5; dz += WS) { wv(x, g, z - dz, C.platform); wv(x, g + WS, z - dz, dz === 0 ? C.white : C.platform); }
+    house(14, z - 7, 8, 3.5, { wall: C.brick, roof: C.slate, h: 3 }); for (let x = 12; x <= 28; x += 4) for (let y = g + 1; y <= g + 3.5; y += WS) wv(x, y, z - 2.5, C.iron); for (let x = 11; x <= 29; x += WS) for (let dz = 0.5; dz <= 3; dz += WS) wv(x, g + 3.5, z - dz, C.canopy);
+    for (let x = 24; x <= 30; x += WS) wv(x, g + 2.5, z - 1.5, C.white); wv(24, g + 2, z - 1.5, C.iron); wv(30, g + 2, z - 1.5, C.iron); lampPost(10, z - 1.5); lampPost(30.5, z - 1.5); for (let k = 0; k < 6; k++) station.doorsAt.push(station.x0 + 4 + k * 3.6); }
+  // fairground: tents, a ferris wheel base, a carousel roof, bunting posts
+  for (const [dx, dz, c] of [[-6, -4, C.tent[0]], [4, -5, C.tent[2]], [7, 4, C.tent[3]], [-8, 5, C.tent[1]]]) { const x = fair.x + dx, z = fair.z + dz, g = Math.floor(groundAt(x, z) / WS) * WS + WS; for (let k = 0; k <= 5; k++) { const r = 2.4 - k * 0.45; for (let a = -r; a <= r; a += WS) for (let b = -r; b <= r; b += WS) if (Math.hypot(a, b) <= r) wv(x + a, g + k * WS, z + b, (Math.round(a / WS) + Math.round(b / WS)) % 2 ? c : C.white); } }
+  { const g = Math.floor(groundAt(fair.x, fair.z) / WS) * WS + WS; fair.y = g; for (let dx = -1.5; dx <= 1.5; dx += 3) for (let y = 0; y < 2; y += WS) wv(fair.x + dx, g + y, fair.z, C.iron); for (let x = -8; x <= 8; x += WS) wv(fair.x + x, g, fair.z + 9, C.hay); fair.carX = fair.x + 3; fair.carZ = fair.z - 10; const gc = Math.floor(groundAt(fair.carX, fair.carZ) / WS) * WS + WS; fair.carY = gc; for (let a = -3.5; a <= 3.5; a += WS) for (let b = -3.5; b <= 3.5; b += WS) if (Math.hypot(a, b) <= 3.5) wv(fair.carX + a, gc, fair.carZ + b, C.wood); }
+  // farm: barn, silo, fields with hedges, cows, hay bales
+  { const g = house(farm.x, farm.z - 8, 5, 4, { wall: C.barn, roof: C.slate, h: 3.5, noSmoke: true }); for (let y = g; y < g + 6; y += WS) for (let a = 0; a < TAU; a += 0.6) wv(farm.x + 7 + Math.cos(a) * 1.2, y, farm.z - 6 + Math.sin(a) * 1.2, C.silo); wv(farm.x + 7, g + 6, farm.z - 6, C.silo);
+    for (const [fx, fz, fw, fd, c] of [[farm.x - 12, farm.z + 12, 10, 8, C.field[0]], [farm.x + 2, farm.z + 13, 9, 7, C.field[1]], [farm.x - 12, farm.z - 4, 8, 9, C.field[2]]]) for (let x = fx; x <= fx + fw; x += WS) for (let z = fz; z <= fz + fd; z += WS) { const gg = Math.floor(groundAt(x, z) / WS) * WS; const i = gi(x, z); if (trackD[i] < 2.2 || roadD[i] < 2.2) continue; const edge = x <= fx || x >= fx + fw || z <= fz || z >= fz + fd; if (edge) { wv(x, gg + WS, z, C.leaf[0]); } else if (c !== C.field[2] || Math.round(x / WS) % 2) wv(x, gg, z, c); }
+    for (let i = 0; i < 6; i++) { const x = farm.x - 8 + rnd(0, 7), z = farm.z - 2 + rnd(0, 6), g2 = Math.floor(groundAt(x, z) / WS) * WS + WS; if (trackD[gi(x, z)] < 3) continue; wv(x, g2, z, C.cow); wv(x + WS, g2, z, hash3(i, 1, 2) < 0.5 ? C.cowSpot : C.cow); wv(x, g2 - WS + WS, z, C.cow); wv(x + WS, g2 + WS, z, C.cow); }
+    for (let i = 0; i < 5; i++) { const x = farm.x + 4 + i * 1.5, z = farm.z + 15.5; const g2 = Math.floor(groundAt(x, z) / WS) * WS + WS; wv(x, g2, z, C.hay); } farm.millX = farm.x - 4; farm.millZ = farm.z - 12; const gm = Math.floor(groundAt(farm.millX, farm.millZ) / WS) * WS + WS; farm.millY = gm + 5; for (let y = 0; y < 5; y += WS) for (let a = 0; a < TAU; a += 0.9) wv(farm.millX + Math.cos(a) * (1.1 - y * 0.08), gm + y, farm.millZ + Math.sin(a) * (1.1 - y * 0.08), C.plaster); wv(farm.millX, gm + 5, farm.millZ, C.slate); }
+  // signal box by the yard, goods shed, buffer lamps
+  house(34, -16, 3, 2.5, { wall: C.wood, roof: C.slate, h: 3.5, noSmoke: true }); house(18, -1, 6, 3.5, { wall: C.brick2, roof: C.slate, h: 3, noSmoke: true });
+  // trees: pines on the hills, round trees in the lowlands, none on tracks, roads or water
+  for (let i = 0; i < 700; i++) { const x = rnd(-HX + 2, HX - 2), z = rnd(-HZ + 2, HZ - 2); const g = groundAt(x, z); const c = gi(x, z); if (g < 0.8 || trackD[c] < 3.2 || roadD[c] < 2.5) continue; if (z < -33 && x > -40 && x < 50) continue; if (Math.hypot(x - fair.x, z - fair.z) < 12 || Math.hypot(x - farm.x, z - farm.z) < 14) continue; if (Math.hypot(x - church.x, z - church.z) < 6) continue; if (hash3(Math.round(x * 3), 0, Math.round(z * 3)) > (g > 5 ? 0.55 : 0.75)) continue; tree(x, z, g > 5 ? 'pine' : 'round'); }
+  for (let x = -34; x <= 46; x += 12) { if (Math.abs(x - 20) < 13) continue; lampPost(x, -37); } lampPost(-5, -28); lampPost(-30, -28); lampPost(fair.x - 10, fair.z + 8); lampPost(fair.x + 10, fair.z + 8);
+  // the room: table edge, legs, floor, back wall with shelf and window
+  const tableY = -1; for (let x = -HX - 3; x <= HX + 3; x += WS) for (let z = -HZ - 3; z <= HZ + 3; z += WS) { const edge = Math.abs(x) > HX || Math.abs(z) > HZ; if (edge) { wv(x, tableY, z, C.table); wv(x, tableY - WS, z, C.table2); wv(x, tableY - 1, z, C.table2); } else wv(x, tableY, z, C.table2); }
+  for (const [lx, lz] of [[-HX, -HZ], [HX, -HZ], [-HX, HZ], [HX, HZ]]) for (let y = tableY - 34; y < tableY - 1; y += WS) for (let a = 0; a < 2; a += WS) for (let b = 0; b < 2; b += WS) wv(lx - (lx > 0 ? a : -a), y, lz - (lz > 0 ? b : -b), C.table2);
+  for (let x = -110; x <= 110; x += WS) for (let z = -90; z <= 90; z += WS) world.set(Math.round(x / WS), Math.round((tableY - 35) / WS), Math.round(z / WS), (Math.floor(x / 8) + Math.floor(z / 8)) % 2 ? C.floor : [0.28, 0.23, 0.18]);
+  for (let x = -110; x <= 110; x += WS) for (let y = tableY - 35; y <= 60; y += WS) if (!(Math.abs(x - 30) < 16 && y > 12 && y < 46)) world.set(Math.round(x / WS), Math.round(y / WS), Math.round(-70 / WS), hash3(Math.round(x * 2), Math.round(y * 2), 0) < 0.5 ? C.wall : [0.52, 0.49, 0.42]);
+  const sky = new THREE.Mesh(new THREE.PlaneGeometry(34, 36), new THREE.MeshBasicMaterial({ color: 0x9fc4e6 })); sky.position.set(30, 29, -71); scene.add(sky); scene.sky = sky;
+  for (let x = -100; x <= -20; x += WS) for (let z = -68; z <= -62; z += WS) world.set(Math.round(x / WS), Math.round(2 / WS), Math.round(z / WS), C.table); for (let i = 0; i < 14; i++) { const x = -96 + i * 5.5; for (let y = 2.5; y < 5.5; y += WS) for (let dx = 0; dx < 2; dx += WS) for (let dz = 0; dz < 2; dz += WS) wv(x + dx, y, -66 + dz, pick(C.carCols)); }
+  const mesh = new THREE.Mesh(world.build(), voxMat); mesh.castShadow = mesh.receiveShadow = true; scene.add(mesh);
+  const wm = new THREE.Mesh(waterSet.build(), new THREE.MeshPhongMaterial({ vertexColors: true, transparent: true, opacity: 0.8, shininess: 90, specular: 0x88aacc })); wm.receiveShadow = true; scene.add(wm);
+}
+/* rails, sleepers and ballast as one static instanced mesh */
+let railPool;
+function buildRails() {
+  let count = 0; for (const t of Object.values(tracks)) count += Math.ceil(t.len / 0.5) * 4 + 20;
+  railPool = new BoxPool(count, new THREE.MeshLambertMaterial({ color: 0xffffff }), true); railPool.begin(); const v = new THREE.Vector3(), v2 = new THREE.Vector3();
+  for (const t of Object.values(tracks)) for (let s = 0; s < t.len; s += 0.5) { t.at(s, v); t.at(s + 0.5, v2); const tx = v2.x - v.x, ty = v2.y - v.y, tz = v2.z - v.z, L = Math.hypot(tx, tz) || 1; const yaw = Math.atan2(tx, tz), pitch = -Math.atan2(ty, L); const nx = -tz / L, nz = tx / L; const cx = (v.x + v2.x) / 2, cy = (v.y + v2.y) / 2, cz = (v.z + v2.z) / 2;
+    railPool.rbox(cx, cy - 0.32, cz, 2.6, 0.22, 0.56, yaw, pitch, 0, C.ballast);
+    if (Math.round(s * 2) % 2 === 0) railPool.rbox(cx, cy - 0.16, cz, 1.7, 0.1, 0.28, yaw, pitch, 0, C.wood);
+    for (const side of [-0.55, 0.55]) railPool.rbox(cx + nx * side, cy - 0.06, cz + nz * side, 0.12, 0.12, 0.56, yaw, pitch, 0, [0.55, 0.52, 0.5]); }
+  // buffer stop lamps at nothing: yard is a loop, so skip
+  railPool.end();
+}
+
+// ==== TRAINS ========================================================================
+const trains = []; const _p1 = new THREE.Vector3(), _p2 = new THREE.Vector3();
+function mkTrain(name, track, s, cars) { const t = { name, track, s, hist: [], speed: 0, target: CFG.speed, cars, dwell: 0, derailed: false, whistleT: rnd(10, 30), chuff: 0, headX: 0, headZ: 0 }; let off = 0; for (const c of cars) { c.off = off + c.len / 2; off += c.len + 0.35; } t.len = off; trains.push(t); return t; }
+/* resolve the track and arc position of a point `off` behind the loco */
+function trainPos(t, off, out) { let s = t.s - off, tr = t.track; for (let i = t.hist.length - 1; i >= 0 && s < 0; i--) { s += t.hist[i].sAt; tr = t.hist[i].track; } if (s < 0 && !tr.closed) s = 0; return tr.at(s, out); }
+function carFrame(t, c) { trainPos(t, c.off - c.len * 0.38, _p1); trainPos(t, c.off + c.len * 0.38, _p2); const x = (_p1.x + _p2.x) / 2, y = (_p1.y + _p2.y) / 2, z = (_p1.z + _p2.z) / 2; const dx = _p1.x - _p2.x, dy = _p1.y - _p2.y, dz = _p1.z - _p2.z; return { x, y, z, yaw: Math.atan2(dx, dz), pitch: -Math.atan2(dy, Math.hypot(dx, dz) || 1) }; }
+function spawnTrains() {
+  const steam = { kind: 'steam', len: 4.2, col: C.green }, tender = { kind: 'tender', len: 2.4, col: C.green }, coach = c => ({ kind: 'coach', len: 4.4, col: c });
+  mkTrain('Express', tracks.main, 60, [steam, tender, coach(C.maroon), coach(C.maroon), coach(C.maroon)]);
+  const diesel = { kind: 'diesel', len: 4.0, col: C.blue }, van = { kind: 'van', len: 2.8, col: [0.5, 0.3, 0.2] }, flat = { kind: 'flat', len: 3.2, col: C.wood }, tank = { kind: 'tank', len: 3.0, col: C.iron }, hopper = { kind: 'hopper', len: 2.8, col: [0.45, 0.42, 0.4] }, brake = { kind: 'brake', len: 2.2, col: [0.5, 0.25, 0.2] };
+  mkTrain('Freight', tracks.main, 220, [diesel, van, flat, tank, hopper, van, flat, brake]);
+}
+const stationRange = () => { const a = tracks.main.nearestS(station.x0 + 2, station.z + 2).s, b = tracks.main.nearestS(station.x1 - 2, station.z + 2).s; return [Math.min(a, b), Math.max(a, b)]; };
+let stationS;
+function aheadDistance(t) { // distance to the next train ahead on the same track (or closing on a merge), for block signalling
+  let best = 1e9; for (const o of trains) { if (o === t || o.derailed) continue; const same = o.track === t.track; if (same) { let d = o.s - o.len - t.s; if (t.track.closed) d = ((d % t.track.len) + t.track.len) % t.track.len; if (d > 0 && d < best) best = d; } else if (t.track.mergeTo && o.track === t.track.mergeTo.track) { const remain = t.track.len - t.s; let d = o.s - o.len - t.track.mergeTo.s; if (o.track.closed) d = ((d % o.track.len) + o.track.len) % o.track.len; d += remain; if (d > 0 && d < best) best = d; } } return best;
+}
+const signals = []; // {x,y,z, yaw, ok}
+function updateTrains(dt, thr) {
+  for (const t of trains) {
+    if (t.derailed) { updateDerail(t, dt); continue; }
+    // targets: throttle, block ahead, station dwell for the express
+    let target = CFG.speed * thr * (t.name === 'Freight' ? 0.7 : 1); const ahead = aheadDistance(t); if (ahead < 14) target = Math.min(target, Math.max(0, (ahead - 5) * 0.6));
+    if (t.name === 'Express' && t.track === tracks.main) { const sr = stationS; if (t.dwell > 0) { t.dwell -= dt; target = 0; if (t.dwell <= 0) { whistle(); t.left = true; } } else if (!t.left && t.s > sr[0] + 3 && t.s < sr[1] + 2) { target = Math.min(target, Math.max(0, (sr[1] + 1 - t.s) * 1.2)); if (t.s > sr[1] - 0.5 && t.speed < 0.3) { t.dwell = 7; boardPassengers(); } } if (t.s > sr[1] + 6 || t.s < sr[0] - 20) t.left = false; }
+    t.speed += clamp(target - t.speed, -dt * 3.5, dt * 1.6);
+    const before = t.s; t.s += t.speed * dt; t.dist = (t.dist || 0) + t.speed * dt;
+    // junction: pass a switch set to diverge
+    for (const j of t.track.junctions) if (before < j.s && t.s >= j.s && switches[j.sw]) { t.hist.push({ track: t.track, sAt: j.s }); t.s = t.s - j.s; t.track = j.to; status(`${t.name} takes the ${j.to.name}`); break; }
+    if (!t.track.closed && t.s >= t.track.len) { const m = t.track.mergeTo; t.hist.push({ track: t.track, sAt: t.track.len }); t.s = m.s + (t.s - t.track.len); t.track = m.track; }
+    if (t.track.closed) { while (t.s >= t.track.len) { t.s -= t.track.len; for (const h of t.hist) h.sAt += 0; } }
+    while (t.hist.length && t.s > t.len + 1) t.hist.shift();
+    // derail check: curvature × speed
+    trainPos(t, 0, _p1); trainPos(t, 2.5, _p2); const c1 = Math.atan2(_p1.x - _p2.x, _p1.z - _p2.z); trainPos(t, 5, _p2); const c2 = Math.atan2(_p1.x - _p2.x, _p1.z - _p2.z); let turn = Math.abs(Math.atan2(Math.sin(c1 - c2), Math.cos(c1 - c2)));
+    if (t.speed > 11.5 && turn > 0.12 && rng() < dt * (t.speed - 11) * turn * 3) derail(t);
+    t.headX = _p1.x; t.headZ = _p1.z; t.headY = _p1.y;
+    // steam: chuffs and smoke
+    t.chuff += t.speed * dt / 1.6; if (t.cars[0].kind === 'steam' && t.chuff > 1) { t.chuff -= 1; const f = carFrame(t, t.cars[0]); setFrame(f.x, f.y, f.z, f.yaw, f.pitch, 0); const p = toWorld(0, 2.6, 1.4); addPuff(p.x, p.y, p.z, C.steam, 0.5 + t.speed * 0.05, t.speed); if (t.speed > 0.5) chuff(t.speed); }
+    if (t.cars[0].kind === 'diesel' && rng() < dt * 6) { const f = carFrame(t, t.cars[0]); setFrame(f.x, f.y, f.z, f.yaw, f.pitch, 0); const p = toWorld(0, 2.3, 1.2); addPuff(p.x, p.y, p.z, C.smoke, 0.35, t.speed); }
+    t.whistleT -= dt; if (t.whistleT <= 0) { t.whistleT = rnd(25, 60); if (t.speed > 3) (t.cars[0].kind === 'steam' ? whistle : horn)(); }
+  }
+}
+function derail(t) { if (t.derailed) return; t.derailed = true; t.bodies = []; crash(); status(`${t.name} has derailed!`); for (const c of t.cars) { const f = carFrame(t, c); const side = rng() < 0.5 ? -1 : 1; const fx = Math.sin(f.yaw), fz = Math.cos(f.yaw); t.bodies.push({ c, x: f.x, y: f.y + 0.3, z: f.z, yaw: f.yaw, pitch: f.pitch, roll: 0, vx: fx * t.speed * 0.8 + fz * side * t.speed * 0.35, vy: 1.5 + rnd(2), vz: fz * t.speed * 0.8 - fx * side * t.speed * 0.35, wy: rnd(-1, 1), wr: side * rnd(1.5, 3), grounded: false }); } }
+function updateDerail(t, dt) { for (const b of t.bodies) { b.vy -= 14 * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt; b.yaw += b.wy * dt; b.roll += b.wr * dt; const g = groundAt(b.x, b.z) + 0.6; if (b.y < g) { b.y = g; if (b.vy < -2) { addPuff(b.x, b.y, b.z, [0.6, 0.5, 0.4], 0.8, 0); } b.vy = 0; b.vx *= Math.pow(0.15, dt * 4); b.vz *= Math.pow(0.15, dt * 4); b.wy *= Math.pow(0.1, dt * 4); const lim = Math.PI / 2; b.roll = clamp(b.roll, -lim, lim); b.wr *= Math.pow(0.05, dt * 4); if (Math.abs(b.roll) > 0.9) b.roll += (Math.sign(b.roll) * lim - b.roll) * dt * 4; b.grounded = true; } if (!(Math.abs(b.x) < HX + 4 && Math.abs(b.z) < HZ + 4) && b.y < -30) b.vy = 0; } }
+function rerail() { for (const t of trains) { if (!t.derailed) continue; t.derailed = false; t.bodies = null; t.speed = 0; t.hist = []; t.track = tracks.main; t.s = t.name === 'Express' ? 60 : 220; } status('Back on the rails.'); }
+/* passengers on the platform */
+const people = []; function spawnPeople() { for (let i = 0; i < 9; i++) people.push({ x: rnd(station.x0 + 2, station.x1 - 2), z: station.z - rnd(0.6, 1.9), col: pick([C.blue, C.red, C.maroon, C.green, [0.3, 0.3, 0.3]]), t: rnd(TAU), boarding: false, wait: 0 }); }
+function boardPassengers() { for (const p of people) if (rng() < 0.7) { p.boarding = true; p.tx = station.doorsAt[Math.floor(rng() * station.doorsAt.length)]; } }
+function updatePeople(dt) { for (const p of people) { p.t += dt; if (p.boarding) { const dx = p.tx - p.x, dz = (station.z + 0.6) - p.z, d = Math.hypot(dx, dz); if (d < 0.3) { p.boarding = false; p.hidden = true; p.wait = rnd(6, 20); } else { p.x += dx / d * 2.2 * dt; p.z += dz / d * 2.2 * dt; } } else if (p.hidden) { p.wait -= dt; if (p.wait <= 0) { p.hidden = false; p.x = rnd(station.x0 + 2, station.x1 - 2); p.z = station.z - 2.3; } } else if (rng() < dt * 0.3) { p.x = clamp(p.x + rnd(-1.5, 1.5), station.x0 + 1, station.x1 - 1); } } }
+/* smoke and steam */
+const puffs = []; function addPuff(x, y, z, c, s, spd) { if (puffs.length > 900) puffs.shift(); puffs.push({ x, y, z, vx: rnd(-0.2, 0.2), vy: rnd(1.2, 2.2), vz: rnd(-0.2, 0.2), c, s, age: 0, life: rnd(1.8, 3.2) }); }
+function updatePuffs(dt) { for (let i = puffs.length - 1; i >= 0; i--) { const p = puffs[i]; p.age += dt; if (p.age > p.life) { puffs[i] = puffs[puffs.length - 1]; puffs.pop(); continue; } p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.vy *= 0.985; } }
+
+// ==== DRAWING =======================================================================
+const pools = {};
+function initPools() { pools.dyn = new BoxPool(6000, new THREE.MeshLambertMaterial({ color: 0xffffff }), true); pools.glow = new BoxPool(1500, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthWrite: false })); pools.smoke = new BoxPool(1200, new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false })); }
+function drawCar(P, G, c, t, night, speed) {
+  const w = c.kind === 'flat' ? 1.5 : 1.7; const wheel = (t.dist || 0) / 0.35;
+  const wheels = (n, r, y) => { for (let i = 0; i < n; i++) { const lz = -c.len / 2 + 0.6 + i * ((c.len - 1.2) / Math.max(1, n - 1)); for (const side of [-0.75, 0.75]) part(P, side, y, lz, 0.14, r * 2, r * 2, C.iron); part(P, 0, y, lz, 1.5, 0.12, 0.12, C.iron); } };
+  switch (c.kind) {
+    case 'steam': part(P, 0, 0.55, 0, 1.6, 0.35, c.len, C.iron); wheels(3, 0.5, 0.5); part(P, 0, 1.55, 0.6, 1.3, 1.3, 2.6, c.col); part(P, 0, 1.6, 1.85, 1.1, 1.1, 0.5, C.iron); part(P, 0, 2.55, 1.35, 0.45, 0.8, 0.45, C.iron); part(P, 0, 2.45, 0.2, 0.7, 0.5, 0.7, C.yellow); part(P, 0, 1.9, -1.35, 1.7, 2.1, 1.4, c.col); part(P, 0, 3.05, -1.35, 1.9, 0.2, 1.6, C.iron); for (const s of [-0.86, 0.86]) part(P, s, 2.2, -1.35, 0.06, 0.6, 0.7, night > 0.3 ? C.lamp : [0.3, 0.35, 0.4]); part(P, 0, 0.85, 2.05, 1.7, 0.5, 0.2, C.red); G.box(...Object.values(toWorld(0, 1.35, 2.15)).slice(0, 3), 0.3 * (0.4 + night), 0.3 * (0.4 + night), 0.15, C.lamp); break;
+    case 'tender': part(P, 0, 0.55, 0, 1.6, 0.35, c.len, C.iron); wheels(2, 0.35, 0.4); part(P, 0, 1.55, 0, 1.6, 1.4, c.len, c.col); part(P, 0, 2.3, -0.2, 1.3, 0.3, 1.6, C.iron); break;
+    case 'coach': part(P, 0, 0.55, 0, 1.6, 0.35, c.len, C.iron); wheels(2, 0.35, 0.4); part(P, 0, 1.7, 0, w, 1.9, c.len, c.col); part(P, 0, 2.75, 0, w - 0.1, 0.25, c.len - 0.2, C.iron); part(P, 0, 1.1, 0, w + 0.02, 0.35, c.len - 0.3, C.cream); for (let k = -1.5; k <= 1.5; k += 0.75) for (const side of [-w / 2 - 0.01, w / 2 + 0.01]) part(P, side, 1.95, k, 0.04, 0.55, 0.45, night > 0.3 ? C.lamp : [0.35, 0.4, 0.5]); break;
+    case 'diesel': part(P, 0, 0.55, 0, 1.6, 0.35, c.len, C.iron); wheels(3, 0.4, 0.45); part(P, 0, 1.75, 0, 1.7, 2.0, c.len, c.col); part(P, 0, 1.9, 0, 1.75, 0.5, c.len, C.yellow); part(P, 0, 2.85, 0, 1.5, 0.2, c.len - 0.5, C.iron); part(P, 0, 2.5, 1.2, 0.3, 0.3, 0.3, C.iron); for (const side of [-0.86, 0.86]) { part(P, side, 2.3, 1.4, 0.06, 0.5, 0.6, night > 0.3 ? C.lamp : [0.3, 0.35, 0.4]); part(P, side, 2.3, -1.4, 0.06, 0.5, 0.6, night > 0.3 ? C.lamp : [0.3, 0.35, 0.4]); } G.box(...Object.values(toWorld(0, 1.3, 2.05)).slice(0, 3), 0.7, 0.25, 0.15, C.lamp); break;
+    case 'van': part(P, 0, 0.55, 0, 1.6, 0.35, c.len, C.iron); wheels(2, 0.35, 0.4); part(P, 0, 1.65, 0, 1.6, 1.8, c.len, c.col); part(P, 0, 2.6, 0, 1.7, 0.15, c.len, C.iron); part(P, 0.81, 1.5, 0, 0.04, 1.2, 0.9, C.iron); break;
+    case 'flat': part(P, 0, 0.55, 0, 1.6, 0.35, c.len, C.iron); wheels(2, 0.35, 0.4); part(P, 0, 0.85, 0, 1.6, 0.2, c.len, C.wood); for (let i = -1; i <= 1; i++) part(P, i * 0.45, 1.2, 0, 0.4, 0.4, c.len - 0.4, C.trunk); part(P, -0.45, 1.6, 0, 0.4, 0.4, c.len - 0.6, C.trunk); part(P, 0.45, 1.6, 0, 0.4, 0.4, c.len - 0.6, C.trunk); break;
+    case 'tank': part(P, 0, 0.55, 0, 1.6, 0.35, c.len, C.iron); wheels(2, 0.35, 0.4); part(P, 0, 1.6, 0, 1.4, 1.4, c.len - 0.3, c.col); part(P, 0, 1.6, 0, 1.0, 1.55, c.len - 0.5, [0.25, 0.25, 0.28]); part(P, 0, 2.45, 0, 0.5, 0.25, 0.5, C.iron); break;
+    case 'hopper': part(P, 0, 0.55, 0, 1.6, 0.35, c.len, C.iron); wheels(2, 0.35, 0.4); part(P, 0, 1.6, 0, 1.6, 1.4, c.len, c.col); part(P, 0, 2.35, 0, 1.3, 0.2, c.len - 0.4, [0.2, 0.18, 0.16]); break;
+    case 'brake': part(P, 0, 0.55, 0, 1.6, 0.35, c.len, C.iron); wheels(2, 0.35, 0.4); part(P, 0, 1.55, -0.2, 1.6, 1.6, 1.5, c.col); part(P, 0, 2.5, -0.2, 1.7, 0.15, 1.7, C.iron); part(P, 0, 0.85, 0.7, 1.6, 0.2, 0.7, C.wood); G.box(...Object.values(toWorld(0, 1.6, -1.05)).slice(0, 3), 0.2, 0.2, 0.1, C.red); break;
+  }
+}
+function drawTrains(night) {
+  const P = pools.dyn, G = pools.glow;
+  for (const t of trains) { if (t.derailed) { for (const b of t.bodies) { setFrame(b.x, b.y - 0.5, b.z, b.yaw, b.pitch, b.roll); drawCar(P, G, b.c, t, night, 0); } continue; } for (const c of t.cars) { const f = carFrame(t, c); setFrame(f.x, f.y - 0.5, f.z, f.yaw, f.pitch, 0); drawCar(P, G, c, t, night, t.speed); } }
+  // headlight on the express at night
+  const ex = trains[0]; if (ex && !ex.derailed) { const f = carFrame(ex, ex.cars[0]); setFrame(f.x, f.y, f.z, f.yaw, f.pitch, 0); const p = toWorld(0, 1.5, 4); headLight.position.set(p.x, p.y, p.z); headLight.intensity = night * 1.6; }
+  for (const p of puffs) { const k = p.age / p.life; const s = p.s * (0.6 + k * 1.6); pools.smoke.box(p.x, p.y, p.z, s, s, s, [p.c[0] * (1 - k * 0.2), p.c[1] * (1 - k * 0.2), p.c[2] * (1 - k * 0.2)]); }
+  for (const p of people) { if (p.hidden) continue; const bob = p.boarding ? Math.abs(Math.sin(p.t * 8)) * 0.06 : 0; P.box(p.x, station.y + 0.35 + bob, p.z, 0.32, 0.7, 0.24, p.col); P.box(p.x, station.y + 0.9 + bob, p.z, 0.26, 0.26, 0.26, C.skin); }
+}
+
+// ==== TRAFFIC =======================================================================
+const road = { pts: roadPts, cum: [0], len: 0 }; for (let i = 1; i < roadPts.length; i++) { road.len += Math.hypot(roadPts[i][0] - roadPts[i - 1][0], roadPts[i][1] - roadPts[i - 1][1]); road.cum.push(road.len); }
+function roadAt(s, out) { s = ((s % road.len) + road.len) % road.len; let i = 0; while (i < road.cum.length - 2 && road.cum[i + 1] <= s) i++; const a = roadPts[i], b = roadPts[i + 1], t = (s - road.cum[i]) / (road.cum[i + 1] - road.cum[i]); out.x = lerp(a[0], b[0], t); out.z = lerp(a[1], b[1], t); out.yaw = Math.atan2(b[0] - a[0], b[1] - a[1]); return out; }
+const cars = [], crossings = []; const _r = { x: 0, z: 0, yaw: 0 };
+function spawnTraffic() {
+  for (let i = 0; i < 7; i++) cars.push({ s: i * road.len / 7, speed: 0, col: C.carCols[i % C.carCols.length], v: rnd(4, 6) });
+  for (const [rx, rz] of [[-5, -31.8], [-30, -31.5]]) { const n = tracks.main.nearestS(rx, rz); let rs = 0, bd = 1e9; for (let s = 0; s < road.len; s += 0.25) { roadAt(s, _r); const d = Math.hypot(_r.x - rx, _r.z - rz); if (d < bd) { bd = d; rs = s; } } crossings.push({ x: rx, z: rz, trackS: n.s, roadS: rs, active: 0, arm: 0, bellT: 0, y: n.y }); }
+}
+function updateTraffic(dt) {
+  for (const cr of crossings) { let act = false; for (const t of trains) { if (t.derailed) continue; if (t.track !== tracks.main) continue; let d = cr.trackS - t.s; d = ((d % tracks.main.len) + tracks.main.len) % tracks.main.len; if (d < 22 || d > tracks.main.len - t.len - 6) act = true; } cr.active = act; cr.arm += ((act ? 1 : 0) - cr.arm) * Math.min(1, dt * 1.6); cr.bellT += dt; if (act && cr.bellT > 0.7) { cr.bellT = 0; bell(cr); } }
+  for (const c of cars) { let target = c.v; // hold before a lowered barrier, and behind the car ahead
+    for (const cr of crossings) { let d = cr.roadS - c.s; d = ((d % road.len) + road.len) % road.len; if (cr.arm > 0.1 && d > 1.5 && d < 7) target = 0; }
+    for (const o of cars) { if (o === c) continue; let d = o.s - c.s; d = ((d % road.len) + road.len) % road.len; if (d > 0 && d < 4.5) target = Math.min(target, o.speed * 0.8); }
+    c.speed += clamp(target - c.speed, -dt * 12, dt * 4); c.s += c.speed * dt; }
+}
+function drawTraffic(night) {
+  const P = pools.dyn, G = pools.glow;
+  for (const c of cars) { roadAt(c.s, _r); const y = groundAt(_r.x, _r.z) + 0.02; setFrame(_r.x, y, _r.z, _r.yaw, 0, 0); part(P, 0, 0.55, 0, 1.2, 0.5, 2.2, c.col); part(P, 0, 0.95, -0.2, 1.05, 0.45, 1.1, c.col); part(P, 0, 0.97, -0.2, 1.08, 0.3, 1.0, [0.3, 0.4, 0.5]); for (const [lx, lz] of [[-0.55, 0.7], [0.55, 0.7], [-0.55, -0.7], [0.55, -0.7]]) part(P, lx, 0.3, lz, 0.2, 0.5, 0.5, C.iron); if (night > 0.3) { G.box(...Object.values(toWorld(-0.4, 0.55, 1.12)).slice(0, 3), 0.2, 0.14, 0.05, C.lamp); G.box(...Object.values(toWorld(0.4, 0.55, 1.12)).slice(0, 3), 0.2, 0.14, 0.05, C.lamp); } }
+  for (const cr of crossings) { const y = groundAt(cr.x, cr.z); const ry = Math.atan2(_r.x, _r.z); roadAt(cr.roadS, _r); const yaw = _r.yaw; for (const side of [-1, 1]) { setFrame(cr.x + Math.sin(yaw) * side * 3.6, y, cr.z + Math.cos(yaw) * side * 3.6, yaw, 0, 0); part(P, side * 1.9, 1.2, 0, 0.3, 2.4, 0.3, C.white); part(P, side * 1.9, 2.0, 0.16, 0.35, 0.3, 0.1, (cr.active && Math.floor(sim.t * 2.5 + side) % 2) ? C.red : [0.35, 0.1, 0.1]); part(P, side * 1.9, 1.7, 0.16, 0.35, 0.3, 0.1, (cr.active && Math.floor(sim.t * 2.5 + side + 1) % 2) ? C.red : [0.35, 0.1, 0.1]); part(P, side * 1.9, 2.5, 0, 0.45, 0.15, 0.6, C.red);
+      const a = (1 - cr.arm) * Math.PI / 2 * 0.95; const armLen = 3.4; const lat = side * (1.9 - Math.cos(a) * armLen / 2); pools.dyn.rbox(F.x + Math.cos(F.yaw) * lat, y + 1.35 + Math.sin(a) * armLen / 2, F.z - Math.sin(F.yaw) * lat, armLen, 0.14, 0.14, yaw, 0, -side * a, C.white); pools.dyn.rbox(F.x + Math.cos(F.yaw) * lat, y + 1.36 + Math.sin(a) * armLen / 2, F.z - Math.sin(F.yaw) * lat, armLen * 0.5, 0.15, 0.15, yaw, 0, -side * a, C.red); } }
+}
+
+// ==== FAIRGROUND, FARM, LAMPS =======================================================
+function drawScenery(night) {
+  const P = pools.dyn, G = pools.glow, t = sim.t;
+  // ferris wheel
+  const wx = fair.x, wy = fair.y + 6.5, wz = fair.z; for (const s of [-1.5, 1.5]) P.rbox(wx + s, fair.y + 3.6, wz + 0, 0.3, 7.2, 0.3, 0, 0, 0, C.iron); P.box(wx, wy, wz, 3.4, 0.4, 0.4, C.iron);
+  const ang = t * 0.35; for (let i = 0; i < 10; i++) { const a = ang + i / 10 * TAU; const gy = wy + Math.sin(a) * 5, gz = wz + Math.cos(a) * 5; P.rbox(wx, wy + Math.sin(a) * 2.5, wz + Math.cos(a) * 2.5, 0.18, 0.18, 5, 0, a, 0, C.iron); P.box(wx, gy - 0.5, gz, 1.4, 0.9, 1.0, C.tent[i % 4]); if (night > 0.2) G.box(wx, gy + 0.2, gz, 0.25, 0.25, 0.25, C.lamp); }
+  for (let i = 0; i < 20; i++) { const a = i / 20 * TAU; if (night > 0.2) G.box(wx + 1.55, wy + Math.sin(a) * 5.4, wz + Math.cos(a) * 5.4, 0.2, 0.2, 0.2, (i + Math.floor(t * 3)) % 3 ? C.yellow : C.red); }
+  // carousel
+  const cx = fair.carX, cy = fair.carY, cz = fair.carZ, ca = t * 0.6; for (let k = 0; k <= 4; k++) P.box(cx, cy + 4.2 + k * 0.35, cz, 7.5 - k * 1.5, 0.35, 7.5 - k * 1.5, k % 2 ? C.tent[0] : C.tent[1]); P.box(cx, cy + 2.4, cz, 0.6, 4, 0.6, C.iron);
+  for (let i = 0; i < 8; i++) { const a = ca + i / 8 * TAU; const hx = cx + Math.cos(a) * 2.6, hz = cz + Math.sin(a) * 2.6, hy = cy + 1.4 + Math.sin(t * 3 + i) * 0.3; P.rbox(hx, hy, hz, 0.4, 0.5, 1.1, -a, 0, 0, C.tent[(i + 1) % 4]); P.rbox(hx, hy + 0.5, hz, 0.3, 0.4, 0.5, -a, 0, 0, C.white); P.box(hx, cy + 2.4, hz, 0.1, 3.6, 0.1, C.yellow); if (night > 0.2) G.box(hx, cy + 4.0, hz, 0.2, 0.2, 0.2, C.lamp); }
+  // windmill blades
+  const ma = t * 0.9; for (let i = 0; i < 4; i++) P.rbox(farm.millX, farm.millY, farm.millZ - 0.9, 0.5, 3.2, 0.12, 0, 0, ma + i * Math.PI / 2, i % 2 ? C.plaster : C.wood);
+  // church clock hands and hourly bell swing
+  const hr = (clock.t / 12) * TAU, mn = ((clock.t % 1)) * TAU; P.rbox(church.bell[0], church.bell[1] - 1.0, church.bell[2] + 1.6, 0.06, 0.55, 0.05, 0, 0, -hr, C.iron); P.rbox(church.bell[0], church.bell[1] - 1.0, church.bell[2] + 1.6, 0.05, 0.85, 0.05, 0, 0, -mn, C.iron);
+  // lamps and lit windows glow
+  if (night > 0.05) { for (const [x, y, z] of streetLamps) G.box(x, y, z, 0.35 * night, 0.35 * night, 0.35 * night, C.lamp); }
+  // chimney smoke from the town
+  if (rng() < 0.4) { const ch = pick(chimneys); if (ch) addPuff(ch[0], ch[1], ch[2], C.smoke, 0.35, 0); }
+}
+
+// ==== TIME / INPUT ==================================================================
+const clock = { t: 10, auto: true }; const sim = { t: 0, thr: 1 };
+function updateDay(dt) {
+  if (clock.auto) { clock.t = (clock.t + dt * 24 / CFG.dayLengthSec) % 24; $('sTime').value = clock.t; }
+  $('vTime').textContent = `${Math.floor(clock.t)}:${String(Math.floor((clock.t % 1) * 60)).padStart(2, '0')}`;
+  const a = (clock.t - 6) / 12 * Math.PI, e = Math.sin(a); const night = 1 - sstep(-0.1, 0.2, e), day = sstep(-0.05, 0.4, e); shaderU.uNight.value = night; shaderU.uTime.value = sim.t;
+  sun.position.set(Math.cos(a) * 60 + 10, Math.max(12, e * 70 + 15), 40); sun.color.setRGB(1, lerp(0.6, 0.95, sstep(0, 0.4, e)), lerp(0.4, 0.88, sstep(0, 0.4, e))); sun.intensity = 0.2 + day * 1.0; hemi.intensity = 0.15 + day * 0.45; ambient.intensity = 0.3 + night * 0.1;
+  scene.background.setRGB(lerp(0.06, 0.16, day), lerp(0.05, 0.13, day), lerp(0.07, 0.11, day)); if (scene.sky) scene.sky.material.color.setRGB(lerp(0.05, 0.62, day), lerp(0.07, 0.77, day), lerp(0.18, 0.9, day));
+  const hour = Math.floor(clock.t); if (hour !== clock.lastHour) { clock.lastHour = hour; churchBell(); }
+  return night;
+}
+const cam = { target: new THREE.Vector3(0, 3, 0), dist: 95, az: 0.5, el: 0.55, follow: null, cine: -1, cineT: 0, hideUI: false };
+const cines = []; function buildCines() { const Vx = (x, y, z) => new THREE.Vector3(x, y, z), loop = pts => new THREE.CatmullRomCurve3(pts, true, 'centripetal');
+  cines.push({ name: 'The Layout', dur: 55, pos: loop([Vx(80, 45, 60), Vx(0, 40, 85), Vx(-85, 40, 50), Vx(-95, 35, -30), Vx(-40, 50, -85), Vx(60, 45, -80)]), look: () => Vx(0, 3, 0) });
+  cines.push({ name: 'On the Footplate', dur: 60, footplate: true });
+  cines.push({ name: 'The Viaduct', dur: 40, pos: loop([Vx(30, 12, 44), Vx(10, 10, 46), Vx(-10, 14, 42), Vx(5, 20, 20), Vx(28, 16, 18)]), look: () => Vx(20, 8, 32) });
+  cines.push({ name: 'Station and Town', dur: 40, pos: loop([Vx(40, 9, -20), Vx(20, 8, -18), Vx(0, 9, -24), Vx(5, 14, -50), Vx(30, 12, -52)]), look: () => Vx(20, 3, -33) }); }
+const _cp = new THREE.Vector3(), _look = new THREE.Vector3();
+function updateCamera(dt) {
+  if (cam.follow) { const f = cam.follow; if (f.derailed && f.bodies) { const b = f.bodies[0]; cam.target.lerp(new THREE.Vector3(b.x, b.y, b.z), Math.min(1, dt * 4)); } else cam.target.lerp(new THREE.Vector3(f.headX, f.headY, f.headZ), Math.min(1, dt * 5)); }
+  if (cam.cine >= 0) { const c = cines[cam.cine]; cam.cineT += dt / c.dur;
+    if (c.footplate) { const t = trains[0]; const f = carFrame(t, t.cars[0]); setFrame(f.x, f.y, f.z, f.yaw, f.pitch, 0); const p = toWorld(0.7, 2.4, -1.0); _cp.copy(p); const q = toWorld(0.4, 2.0, 12); _look.copy(q); camera.position.lerp(_cp, Math.min(1, dt * 6)); cam.target.lerp(_look, Math.min(1, dt * 6)); }
+    else { const u = cam.cineT % 1; c.pos.getPointAt(u, _cp); _look.copy(c.look()); camera.position.lerp(_cp, Math.min(1, dt * 2.5)); cam.target.lerp(_look, Math.min(1, dt * 2.5)); }
+    camera.lookAt(cam.target); const dd = camera.position.clone().sub(cam.target); cam.dist = dd.length(); cam.el = Math.asin(clamp(dd.y / cam.dist, -1, 1)); cam.az = Math.atan2(dd.x, dd.z); return; }
+  const ce = Math.cos(cam.el); camera.position.set(cam.target.x + cam.dist * ce * Math.sin(cam.az), cam.target.y + cam.dist * Math.sin(cam.el), cam.target.z + cam.dist * ce * Math.cos(cam.az)); camera.lookAt(cam.target);
+}
+const mouse = { down: false, btn: 0, x: 0, y: 0, sx: 0, sy: 0, moved: false }; const _pv = new THREE.Vector3();
+function pickTrain(mx, my) { let best = null, bd = 40 * 40; for (const t of trains) { const pts = t.derailed ? t.bodies.map(b => [b.x, b.y, b.z]) : t.cars.map(c => { const f = carFrame(t, c); return [f.x, f.y + 1, f.z]; }); for (const [x, y, z] of pts) { _pv.set(x, y, z).project(camera); if (_pv.z > 1) continue; const sx = (_pv.x + 1) / 2 * innerWidth, sy = (-_pv.y + 1) / 2 * innerHeight; const d = (sx - mx) ** 2 + (sy - my) ** 2; if (d < bd) { bd = d; best = t; } } } return best; }
+function follow(t) { cam.follow = t; cam.cine = -1; cam.dist = Math.min(cam.dist, 30); status(`Following the ${t.name}`); }
+function unfollow() { cam.follow = null; }
+canvas.addEventListener('mousedown', e => { mouse.down = true; mouse.btn = e.button; mouse.sx = e.clientX; mouse.sy = e.clientY; mouse.moved = false; if (e.button !== 0) e.preventDefault(); });
+window.addEventListener('mousemove', e => { const dx = e.clientX - mouse.x, dy = e.clientY - mouse.y; mouse.x = e.clientX; mouse.y = e.clientY; if (!mouse.down) return; if (Math.abs(e.clientX - mouse.sx) + Math.abs(e.clientY - mouse.sy) > 4) mouse.moved = true; if (mouse.moved) cam.cine = -1; if (mouse.btn === 0 && !e.shiftKey) { cam.az -= dx * 0.005; cam.el = clamp(cam.el + dy * 0.005, 0.05, 1.5); } else { const s = cam.dist * 0.0012, fx = Math.sin(cam.az), fz = Math.cos(cam.az); cam.target.x += (-dx * fz + dy * fx) * s * -1; cam.target.z += (dx * fx + dy * fz) * s; unfollow(); } });
+window.addEventListener('mouseup', e => { ensureAudio(); if (!mouse.down) return; mouse.down = false; if (mouse.moved || e.button !== 0) return; const t = pickTrain(e.clientX, e.clientY); if (t) follow(t); else if (cam.follow) { unfollow(); status('Free camera'); } });
+window.addEventListener('pointerup', () => ensureAudio(), { passive: true });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('wheel', e => { e.preventDefault(); cam.cine = -1; cam.dist = clamp(cam.dist * Math.exp(e.deltaY * 0.0012), 4, 260); }, { passive: false });
+const touch = { pts: new Map(), lastDist: 0, midX: 0, midY: 0, startX: 0, startY: 0, t0: 0, moved: false };
+canvas.addEventListener('touchstart', e => { e.preventDefault(); for (const t of e.changedTouches) touch.pts.set(t.identifier, { x: t.clientX, y: t.clientY }); if (e.touches.length === 1) { touch.startX = e.touches[0].clientX; touch.startY = e.touches[0].clientY; touch.t0 = performance.now(); touch.moved = false; } else if (e.touches.length >= 2) { const a = e.touches[0], b = e.touches[1]; touch.lastDist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); touch.midX = (a.clientX + b.clientX) / 2; touch.midY = (a.clientY + b.clientY) / 2; touch.moved = true; } }, { passive: false });
+canvas.addEventListener('touchmove', e => { e.preventDefault(); if (e.touches.length === 1) { const t = e.touches[0], prev = touch.pts.get(t.identifier) || { x: t.clientX, y: t.clientY }; const dx = t.clientX - prev.x, dy = t.clientY - prev.y; if (Math.abs(t.clientX - touch.startX) + Math.abs(t.clientY - touch.startY) > 8) touch.moved = true; if (touch.moved) { cam.cine = -1; cam.az -= dx * 0.006; cam.el = clamp(cam.el + dy * 0.006, 0.05, 1.5); } } else if (e.touches.length >= 2) { const a = e.touches[0], b = e.touches[1]; const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), mx = (a.clientX + b.clientX) / 2, my = (a.clientY + b.clientY) / 2; if (touch.lastDist > 0) cam.dist = clamp(cam.dist * touch.lastDist / d, 4, 260); const s = cam.dist * 0.0018, fx = Math.sin(cam.az), fz = Math.cos(cam.az), dx = mx - touch.midX, dy = my - touch.midY; cam.target.x += (-dx * fz + dy * fx) * s * -1; cam.target.z += (dx * fx + dy * fz) * s; if (Math.abs(dx) + Math.abs(dy) > 1) unfollow(); cam.cine = -1; touch.lastDist = d; touch.midX = mx; touch.midY = my; } for (const t of e.changedTouches) touch.pts.set(t.identifier, { x: t.clientX, y: t.clientY }); }, { passive: false });
+function touchEnd(e) { e.preventDefault(); ensureAudio(); for (const t of e.changedTouches) touch.pts.delete(t.identifier); if (e.touches.length === 0 && !touch.moved && performance.now() - touch.t0 < 400 && e.changedTouches.length === 1) { const t = e.changedTouches[0]; const tr = pickTrain(t.clientX, t.clientY); if (tr) follow(tr); else if (cam.follow) unfollow(); } if (e.touches.length < 2) touch.lastDist = 0; if (e.touches.length === 1) touch.moved = true; }
+canvas.addEventListener('touchend', touchEnd, { passive: false }); canvas.addEventListener('touchcancel', touchEnd, { passive: false });
+function cycleCinematic() { cam.cine = cam.cine >= cines.length - 1 ? -1 : cam.cine + 1; unfollow(); if (cam.cine >= 0) { cam.cineT = 0; status(`Cinematic: ${cines[cam.cine].name}`); } else status('Free camera'); }
+function toggleUI() { cam.hideUI = !cam.hideUI; for (const id of ['hud', 'panel', 'keys', 'mobilebar', 'panelToggle']) $(id).style.display = cam.hideUI ? 'none' : ''; }
+function toggleSwitch(sw) { ensureAudio(); switches[sw] = !switches[sw]; clack(); if (sw === 'A') { $('bSwA').textContent = switches.A ? 'Branch: diverge' : 'Branch: main'; $('bSwA').classList.toggle('on', switches.A); status(switches.A ? 'Points set for the branch line' : 'Points set for the main line'); } else { $('bSwC').textContent = switches.C ? 'Yard: loop' : 'Yard: through'; $('bSwC').classList.toggle('on', switches.C); status(switches.C ? 'Points set for the goods loop' : 'Points set straight through'); } }
+window.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return; ensureAudio(); if (e.code === 'Space') { e.preventDefault(); cycleCinematic(); } else if (e.code === 'Digit1') toggleSwitch('A'); else if (e.code === 'Digit2') toggleSwitch('C'); else if (e.code === 'KeyW') whistle(); else if (e.code === 'KeyR') rerail(); else if (e.code === 'Escape') { unfollow(); cam.cine = -1; } else if (e.code === 'KeyH') toggleUI(); });
+window.addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+$('sThr').addEventListener('input', e => { sim.thr = parseFloat(e.target.value); $('vThr').textContent = sim.thr.toFixed(2); if (sim.thr > 1.7) status('Careful on the curves…'); });
+$('sTime').addEventListener('input', e => { clock.t = parseFloat(e.target.value); }); $('cAuto').addEventListener('change', e => clock.auto = e.target.checked);
+$('sVol').addEventListener('input', e => { setVolume(parseFloat(e.target.value)); $('vVol').textContent = parseFloat(e.target.value).toFixed(2); });
+$('bSwA').addEventListener('click', () => toggleSwitch('A')); $('bSwC').addEventListener('click', () => toggleSwitch('C')); $('bWhistle').addEventListener('click', () => { ensureAudio(); whistle(); }); $('bReset').addEventListener('click', () => { ensureAudio(); rerail(); });
+$('mbCine').addEventListener('click', () => { ensureAudio(); cycleCinematic(); }); $('mbSwA').addEventListener('click', () => toggleSwitch('A')); $('mbWhistle').addEventListener('click', () => { ensureAudio(); whistle(); }); $('mbReset').addEventListener('click', () => { ensureAudio(); rerail(); }); $('mbFollow').addEventListener('click', () => { unfollow(); cam.cine = -1; });
+$('panelToggle').addEventListener('click', () => $('panel').classList.toggle('open'));
+
+// ==== SOUND =========================================================================
+/* steam chuffs paced to the wheels, a diesel drone that follows speed, a two-tone whistle and horn, crossing bells, a church bell
+   on the hour, point clacks, and a crash. All through one master gain; unlocked on the first gesture; kept subtle. */
+let audio = null; const SND = { volume: 0.3, master: null, drone: null, announced: false };
+function ensureAudio() {
+  if (audio === false) return null;
+  if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); SND.master = audio.createGain(); SND.master.gain.value = SND.volume; SND.master.connect(audio.destination);
+    const o = audio.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 55; const f = audio.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 220; const g = audio.createGain(); g.gain.value = 0; const lfo = audio.createOscillator(); lfo.frequency.value = 7; const lg = audio.createGain(); lg.gain.value = 0.004; lfo.connect(lg).connect(g.gain); lfo.start(); o.connect(f).connect(g).connect(SND.master); o.start(); SND.drone = { o, g };
+    audio.onstatechange = () => { if (audio.state === 'running' && !SND.announced) { SND.announced = true; status('Sound on · volume in the Signal Box'); } }; } catch (e) { audio = false; return null; } }
+  if (audio.state === 'suspended') audio.resume().catch(() => {}); return audio;
+}
+function setVolume(v) { SND.volume = v; if (SND.master) SND.master.gain.setTargetAtTime(v, audio.currentTime, 0.05); }
+const running = () => audio && audio.state === 'running';
+function tone(freq, gain, attack, decay, type = 'sine', sweepTo = null) { if (!running()) return; const t = audio.currentTime, o = audio.createOscillator(), g = audio.createGain(); o.type = type; o.frequency.setValueAtTime(freq, t); if (sweepTo) o.frequency.exponentialRampToValueAtTime(sweepTo, t + decay); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(gain, t + attack); g.gain.exponentialRampToValueAtTime(0.0002, t + attack + decay); o.connect(g).connect(SND.master); o.start(t); o.stop(t + attack + decay + 0.05); }
+function noiseBurst(len, freq, gain, decayPow = 3) { if (!running()) return; const t = audio.currentTime, buf = audio.createBuffer(1, audio.sampleRate * len, audio.sampleRate), d = buf.getChannelData(0); let b = 0; for (let i = 0; i < d.length; i++) { b = (b + 0.05 * (Math.random() * 2 - 1)) / 1.05; d[i] = b * 4 * Math.pow(1 - i / d.length, decayPow); } const s = audio.createBufferSource(); s.buffer = buf; const f = audio.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = freq; const g = audio.createGain(); g.gain.value = gain; s.connect(f).connect(g).connect(SND.master); s.start(t); }
+function boom() { noiseBurst(0.9, 320, 0.7, 2.5); tone(60, 0.12, 0.005, 0.5, 'sine', 35); }
+function thunder() { noiseBurst(2.6, 220, 0.6, 1.6); }
+function plop(p) { tone(300 + p * 120, 0.06 * p, 0.004, 0.2, 'sine', 90); }
+function tink() { tone(2100, 0.035, 0.002, 0.5); tone(3150, 0.015, 0.002, 0.35); }
+
+
+function chuff(speed) { if (!running()) return; noiseBurst(0.12, 900 + speed * 60, 0.05 + Math.min(0.08, speed * 0.008), 2); }
+function whistle() { if (!running()) return; const t = audio.currentTime; for (const [f, g] of [[622, 0.035], [784, 0.03], [932, 0.02]]) { const o = audio.createOscillator(), gn = audio.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(f * 0.97, t); o.frequency.linearRampToValueAtTime(f, t + 0.08); const v = audio.createOscillator(); v.frequency.value = 5.5; const vg = audio.createGain(); vg.gain.value = 4; v.connect(vg).connect(o.frequency); v.start(t); gn.gain.setValueAtTime(0.0001, t); gn.gain.linearRampToValueAtTime(g, t + 0.06); gn.gain.setValueAtTime(g, t + 0.7); gn.gain.exponentialRampToValueAtTime(0.0003, t + 1.1); o.connect(gn).connect(SND.master); o.start(t); o.stop(t + 1.15); v.stop(t + 1.15); } }
+function horn() { if (!running()) return; for (const [f, g] of [[311, 0.05], [392, 0.04]]) tone(f, g, 0.05, 0.9, 'sawtooth'); }
+function bell(cr) { if (!running()) return; tone(1760, 0.012, 0.002, 0.35, 'sine'); tone(2637, 0.005, 0.002, 0.2, 'sine'); }
+function churchBell() { for (const [f, g, d] of [[392, 0.04, 3], [784, 0.02, 2], [1176, 0.008, 1.2]]) tone(f, g, 0.01, d); }
+function clack() { noiseBurst(0.05, 1400, 0.12, 2); tone(220, 0.03, 0.002, 0.08, 'square'); }
+function crash() { noiseBurst(1.2, 600, 0.35, 2); for (let i = 0; i < 6; i++) setTimeout(() => noiseBurst(0.3, 1500, 0.1, 2), 150 + i * 180); }
+function updateSound() { if (!running() || !SND.drone) return; const fr = trains[1]; const sp = fr && !fr.derailed ? fr.speed : 0; const t = audio.currentTime; SND.drone.g.gain.setTargetAtTime(sp > 0.2 ? 0.03 + Math.min(1, sp / 8) * 0.03 : 0, t, 0.4); SND.drone.o.frequency.setTargetAtTime(48 + Math.min(1, sp / 8) * 40, t, 0.4); }
+
+// ==== LOOP ==========================================================================
+let last = performance.now(), fps = 60, frames = 0, fpsT = 0, hudT = 0, totalVox = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = clamp((now - last) / 1000, 0, 0.05); last = now; sim.t += dt; frames++; fpsT += dt; if (fpsT > 0.5) { fps = frames / fpsT; frames = 0; fpsT = 0; }
+  const night = updateDay(dt); updateTrains(dt, sim.thr); updateTraffic(dt); updatePeople(dt); updatePuffs(dt); if (audio) updateSound();
+  pools.dyn.begin(); pools.glow.begin(); pools.smoke.begin(); drawTrains(night); drawTraffic(night); drawScenery(night); pools.dyn.end(); pools.glow.end(); pools.smoke.end();
+  updateCamera(dt); renderer.render(scene, camera);
+  hudT += dt; if (hudT > 0.4) { hudT = 0; $('hFps').textContent = fps.toFixed(0); $('hVox').textContent = totalVox.toLocaleString(); $('hT1').textContent = trains[0].derailed ? 'derailed' : trains[0].dwell > 0 ? 'at station' : trains[0].speed.toFixed(1) + ' m/s'; $('hT2').textContent = trains[1].derailed ? 'derailed' : trains[1].track.name + ' ' + trains[1].speed.toFixed(1); $('hTime').textContent = $('vTime').textContent; }
+}
+(async () => {
+  const msg = $('loadmsg'); const step = async m => { msg.textContent = m; await new Promise(r => setTimeout(r, 30)); };
+  await step('laying the baseboard…'); initPools(); buildTracks(); buildTerrain();
+  await step('building the town…'); buildScenery(); buildRails(); totalVox = world.count + waterSet.count;
+  await step('coupling the trains…'); spawnTrains(); stationS = stationRange(); spawnPeople(); spawnTraffic(); buildCines();
+  $('load').style.display = 'none'; last = performance.now(); requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

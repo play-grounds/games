@@ -7,6 +7,7 @@ Small browser games, published at https://play-grounds.github.io/games/
 | Siegeworks | https://play-grounds.github.io/games/siegeworks/ | Voxel diorama of a medieval capital under siege. Single HTML file, Three.js r128 from cdnjs, no build step. |
 | Bottleship | https://play-grounds.github.io/games/bottleship/ | A voxel galleon on a living sea inside a glass bottle: buoyancy physics, storms, dolphins, a serpent. Single HTML file, Three.js r128 from cdnjs. |
 | Clockwork Orrery | https://play-grounds.github.io/games/orrery/ | A brass solar system under a glass dome: voxel planets, moons, a comet, a gear train, eclipse shadows. Single HTML file, Three.js r128 from cdnjs. |
+| Railway Model | https://play-grounds.github.io/games/railway/ | A tabletop voxel model railway with routed trains, switches, signals, crossings and derailments. Single HTML file, Three.js r128 from cdnjs. |
 
 Each game lives in its own directory as a self-contained `index.html`.
 
