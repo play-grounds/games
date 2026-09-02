@@ -1324,7 +1324,15 @@ function status(msg) { const el = document.getElementById('status'); el.textCont
 let audio = null;
 /* ---- sound: everything runs through one master gain (panel slider); bells and thuds fade with distance ---- */
 const SND = { volume: 0.35, master: null };
-function ensureAudio() { if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); SND.master = audio.createGain(); SND.master.gain.value = SND.volume; SND.master.connect(audio.destination); } catch (e) { audio = false; } } if (audio && audio.state === 'suspended') audio.resume(); return audio; }
+/* Browsers only start audio inside a real activation gesture (touchend / pointerup / click / keydown, NOT touchstart),
+   so this is called from those handlers; the first time the context actually runs we confirm it on screen. */
+function ensureAudio() {
+  if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); SND.master = audio.createGain(); SND.master.gain.value = SND.volume; SND.master.connect(audio.destination);
+    audio.onstatechange = () => { if (audio.state === 'running' && !SND.announced) { SND.announced = true; status('Sound on · volume slider in the Council panel'); } }; } catch (e) { audio = false; } }
+  if (audio && audio.state === 'suspended') audio.resume().catch(() => {});
+  if (audio && audio.state === 'running' && !SND.announced) { SND.announced = true; status('Sound on · volume slider in the Council panel'); }
+  return audio;
+}
 function setVolume(v) { SND.volume = v; if (SND.master) SND.master.gain.setTargetAtTime(v, audio.currentTime, 0.05); }
 /* attenuation by camera distance to a world point (1 up close, floors at `min`) */
 function distGain(x, z, ref = 90, min = 0.15) { if (x === undefined) return 1; const d = Math.hypot(camera.position.x - x, camera.position.z - z); return clamp(ref / Math.max(ref, d), min, 1); }
@@ -1800,6 +1808,7 @@ window.addEventListener('mousemove', e => {
   if (mouse.btn === 0 && !e.shiftKey) { cam.az -= dx * 0.005; cam.el = clamp(cam.el + dy * 0.005, 0.03, 1.52); }
   else { const s = cam.dist * 0.0012; const fx = Math.sin(cam.az), fz = Math.cos(cam.az); cam.target.x += (-dx * fz + dy * fx) * s * -1; cam.target.z += (dx * fx + dy * fz) * s; cam.follow = null; }
 });
+window.addEventListener('pointerup', () => ensureAudio(), { passive: true });
 window.addEventListener('mouseup', e => {
   if (!mouse.down) return; mouse.down = false; if (mouse.moved || e.button !== 0) return;
   if (cam.god) { const hit = pickUnderMouse(e.clientX, e.clientY); if (hit) dropBoulder(hit.x + 0.5, hit.y, hit.z + 0.5); return; }
@@ -1845,7 +1854,7 @@ canvas.addEventListener('touchmove', e => {
   for (const t of e.changedTouches) touch.pts.set(t.identifier, touchPoint(t));
 }, { passive: false });
 function touchEnd(e) {
-  e.preventDefault(); clearTimeout(touch.timer);
+  e.preventDefault(); clearTimeout(touch.timer); ensureAudio();
   for (const t of e.changedTouches) touch.pts.delete(t.identifier);
   if (touch.pressing) { touch.pressing = false; parkClip(); document.getElementById('tip').style.display = 'none'; mouse.x = -100; }
   else if (e.touches.length === 0 && !touch.moved && performance.now() - touch.t0 < 400 && e.changedTouches.length === 1) {
