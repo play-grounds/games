@@ -93,6 +93,7 @@
   <input type="range" id="sWx" min="0" max="1" step="0.05" value="0.5">
   <div class="row"><input type="checkbox" id="cGod"><label style="margin:0">God mode (click drops a boulder)</label></div>
   <div class="row"><input type="checkbox" id="cShadow" checked><label style="margin:0">Shadows</label></div>
+  <div class="row"><input type="checkbox" id="cGrade" checked><label style="margin:0">Colour grade</label></div>
   <label>Sound <span id="vVol">0.35</span></label>
   <input type="range" id="sVol" min="0" max="1" step="0.05" value="0.35">
   <label>Seed</label>
@@ -816,21 +817,36 @@ function generateWorld(seed) {
 /* Greedy mesher over an axis-aligned region. `sample(x,y,z)` returns a material id in world voxel
    coordinates (scale 1) or in downsampled coordinates (scale 2, for LOD). Emits merged quads with
    vertex colours and an "emit" attribute used by the shader for windows and embers.                 */
-function greedyMesh(x0, z0, size, yMin, yMax, sample, scale) {
+/* Ambient occlusion: each face corner gets 0..3 from its three neighbouring cells on the open side (the classic voxel
+   AO rule). The four corner values are packed into the mask next to the material id, so greedy merging only joins faces
+   whose occlusion matches. Open runs still merge into one quad; edges and inside corners split, which is where the shading
+   varies anyway. Interpolating the corner values across a merged quad gives smooth gradients along walls and under eaves. */
+const AO_LEVEL = [0.52, 0.70, 0.86, 1.0];
+function greedyMesh(x0, z0, size, yMin, yMax, sample, scale, ao = true) {
   const pos = [], nrm = [], col = [], emit = [], idx = [];
   const dims = [size, yMax - yMin, size], org = [x0, yMin, z0];
-  const x = [0, 0, 0], q = [0, 0, 0], du = [0, 0, 0], dv = [0, 0, 0];
+  const x = [0, 0, 0], q = [0, 0, 0], du = [0, 0, 0], dv = [0, 0, 0], eu = [0, 0, 0], ev = [0, 0, 0];
+  const solid = m => m !== 0 && m !== M.WATER;
   const at = (i, j, k) => sample(org[0] + i, org[1] + j, org[2] + k);
   for (let d = 0; d < 3; d++) {
-    const u = (d + 1) % 3, v = (d + 2) % 3; q[0] = q[1] = q[2] = 0; q[d] = 1;
+    const u = (d + 1) % 3, v = (d + 2) % 3; q[0] = q[1] = q[2] = 0; q[d] = 1; eu[0] = eu[1] = eu[2] = 0; eu[u] = 1; ev[0] = ev[1] = ev[2] = 0; ev[v] = 1;
     const mask = new Int32Array(dims[u] * dims[v]);
     for (x[d] = -1; x[d] < dims[d];) {
       let n = 0;
       for (x[v] = 0; x[v] < dims[v]; x[v]++) for (x[u] = 0; x[u] < dims[u]; x[u]++) {
         const a = at(x[0], x[1], x[2]);
         const b = at(x[0] + q[0], x[1] + q[1], x[2] + q[2]);
-        const sa = a !== 0 && a !== M.WATER, sb = b !== 0 && b !== M.WATER;
-        mask[n++] = sa === sb ? 0 : sa ? a : -b;
+        const sa = solid(a), sb = solid(b);
+        if (sa === sb) { mask[n++] = 0; continue; }
+        let packed = 0;
+        if (ao) { // the open cell in front of the face
+          const ax = sa ? x[0] + q[0] : x[0], ay = sa ? x[1] + q[1] : x[1], az = sa ? x[2] + q[2] : x[2];
+          for (let c = 0; c < 4; c++) { const su = (c === 1 || c === 2) ? 1 : -1, sv = c >= 2 ? 1 : -1;
+            const s1 = solid(at(ax + su * eu[0], ay + su * eu[1], az + su * eu[2])) ? 1 : 0, s2 = solid(at(ax + sv * ev[0], ay + sv * ev[1], az + sv * ev[2])) ? 1 : 0;
+            const cc = solid(at(ax + su * eu[0] + sv * ev[0], ay + su * eu[1] + sv * ev[1], az + su * eu[2] + sv * ev[2])) ? 1 : 0;
+            packed |= ((s1 && s2) ? 0 : 3 - (s1 + s2 + cc)) << (2 * c); }
+        }
+        mask[n++] = sa ? (a | packed << 8) : -(b | packed << 8);
       }
       x[d]++; n = 0;
       for (let j = 0; j < dims[v]; j++) for (let i = 0; i < dims[u];) {
@@ -838,14 +854,14 @@ function greedyMesh(x0, z0, size, yMin, yMax, sample, scale) {
         let w = 1; while (i + w < dims[u] && mask[n + w] === c) w++;
         let h = 1, done = false; for (; j + h < dims[v]; h++) { for (let k = 0; k < w; k++) if (mask[n + k + h * dims[u]] !== c) { done = true; break; } if (done) break; }
         x[u] = i; x[v] = j; du[0] = du[1] = du[2] = 0; dv[0] = dv[1] = dv[2] = 0; du[u] = w; dv[v] = h;
-        const m = c > 0 ? c : -c, p = PAL[m] || [1, 0, 1], e = m === M.WINDOW ? 1 : m === M.EMBER ? 2 : 0;
+        const packedM = c > 0 ? c : -c, m = packedM & 255, aoBits = packedM >> 8, p = PAL[m] || [1, 0, 1], e = m === M.WINDOW ? 1 : m === M.EMBER ? 2 : 0;
         const base = pos.length / 3, s = scale;
         const px = (org[0] + x[0]) * s, py = (org[1] + x[1]) * s, pz = (org[2] + x[2]) * s;
         // slight per-face shade so vertical faces read as walls
         const shade = d === 1 ? (c > 0 ? 1 : 0.55) : 0.86;
         pos.push(px, py, pz, px + du[0] * s, py + du[1] * s, pz + du[2] * s, px + (du[0] + dv[0]) * s, py + (du[1] + dv[1]) * s, pz + (du[2] + dv[2]) * s, px + dv[0] * s, py + dv[1] * s, pz + dv[2] * s);
         const nx = q[0] * (c > 0 ? 1 : -1), ny = q[1] * (c > 0 ? 1 : -1), nz = q[2] * (c > 0 ? 1 : -1);
-        for (let k = 0; k < 4; k++) { nrm.push(nx, ny, nz); col.push(p[0] * shade * 255, p[1] * shade * 255, p[2] * shade * 255); emit.push(e * 100); }
+        for (let k = 0; k < 4; k++) { const f = shade * (ao ? AO_LEVEL[(aoBits >> (2 * k)) & 3] : 1); nrm.push(nx, ny, nz); col.push(p[0] * f * 255, p[1] * f * 255, p[2] * f * 255); emit.push(e * 100); }
         if (c > 0) idx.push(base, base + 1, base + 2, base, base + 2, base + 3); else idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
         for (let l = 0; l < h; l++) for (let k = 0; k < w; k++) mask[n + k + l * dims[u]] = 0;
         i += w; n += w;
@@ -897,7 +913,7 @@ class Chunk {
   }
   buildLod() {
     const [lo, hi] = this.yRange();
-    const g = greedyMesh(this.cx * CH / 2, this.cz * CH / 2, CH / 2, Math.floor(lo / 2), Math.ceil(hi / 2) + 1, sampleLOD, 2);
+    const g = greedyMesh(this.cx * CH / 2, this.cz * CH / 2, CH / 2, Math.floor(lo / 2), Math.ceil(hi / 2) + 1, sampleLOD, 2, false);
     if (g) { this.lod = new THREE.Mesh(g, chunkMat); this.lod.castShadow = false; this.lod.receiveShadow = true; this.lod.visible = this.useLod; scene.add(this.lod); }
     this.lodDirty = false;
   }
@@ -996,6 +1012,46 @@ const pools = {
   weather: new BoxPool(7000, rainMat),
   cloud: new BoxPool(400, new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false }))
 };
+/* ---- colour grade: the frame renders to a target, then one full-screen pass applies a gentle S-curve, cool shadows /
+   warm highlights, a touch of saturation and a soft vignette. Multisampled target on WebGL2 desktops keeps the AA. ---- */
+const GRADE = { on: true, rt: null, scene: new THREE.Scene(), cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), mat: null };
+GRADE.mat = new THREE.ShaderMaterial({
+  uniforms: { tDiffuse: { value: null }, uAmount: { value: 1 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  fragmentShader: `varying vec2 vUv; uniform sampler2D tDiffuse; uniform float uAmount;
+    void main(){
+      vec3 c = texture2D(tDiffuse, vUv).rgb; vec3 o = c;
+      c = mix(c, c * c * (3.0 - 2.0 * c), 0.30);                       // contrast S-curve
+      float l = dot(c, vec3(0.299, 0.587, 0.114));
+      c += vec3(0.035, 0.018, -0.03) * smoothstep(0.35, 0.95, l);        // warm highlights
+      c += vec3(-0.02, -0.01, 0.035) * (1.0 - smoothstep(0.05, 0.45, l)); // cool shadows
+      c = mix(vec3(l), c, 1.10);                                         // saturation
+      vec2 p = vUv - 0.5; c *= 1.0 - 0.22 * dot(p, p) * 2.2;             // vignette
+      gl_FragColor = vec4(mix(o, clamp(c, 0.0, 1.0), uAmount), 1.0); }`,
+  depthTest: false, depthWrite: false
+});
+GRADE.scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), GRADE.mat));
+function makeGradeTarget() {
+  if (GRADE.rt) GRADE.rt.dispose();
+  const w = Math.floor(innerWidth * renderer.getPixelRatio()), h = Math.floor(innerHeight * renderer.getPixelRatio());
+  const opts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBFormat, depthBuffer: true, stencilBuffer: false };
+  GRADE.rt = (!IS_MOBILE && renderer.capabilities.isWebGL2 && !GRADE.level) ? new THREE.WebGLMultisampleRenderTarget(w, h, opts) : new THREE.WebGLRenderTarget(w, h, opts);
+  GRADE.mat.uniforms.tDiffuse.value = GRADE.rt.texture;
+}
+makeGradeTarget();
+/* auto-quality: if the frame rate sits under 40 for a few seconds, first drop the multisampled target, then the grade itself */
+GRADE.lowT = 0; GRADE.level = 0;
+function gradeWatchdog(dt) {
+  if (!GRADE.on || simTime < 8) return;
+  GRADE.lowT = fps < 40 ? GRADE.lowT + dt : Math.max(0, GRADE.lowT - dt);
+  if (GRADE.lowT < 3) return; GRADE.lowT = 0; GRADE.level++;
+  if (GRADE.level === 1 && GRADE.rt.isWebGLMultisampleRenderTarget) { const w = GRADE.rt.width, h = GRADE.rt.height; GRADE.rt.dispose(); GRADE.rt = new THREE.WebGLRenderTarget(w, h, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBFormat, depthBuffer: true, stencilBuffer: false }); GRADE.mat.uniforms.tDiffuse.value = GRADE.rt.texture; status('Frame rate low: antialiasing reduced'); }
+  else { GRADE.on = false; document.getElementById('cGrade').checked = false; status('Frame rate low: colour grade switched off'); }
+}
+function renderFrame() {
+  if (!GRADE.on) { renderer.render(scene, camera); return; }
+  renderer.setRenderTarget(GRADE.rt); renderer.render(scene, camera); renderer.setRenderTarget(null); renderer.render(GRADE.scene, GRADE.cam);
+}
 const colorOf = m => PAL[m];
 const CLR = { skin: [0.85, 0.66, 0.5], skin2: [0.55, 0.38, 0.25], hair: [0.3, 0.2, 0.1], tunic: [[0.45, 0.35, 0.22], [0.35, 0.42, 0.3], [0.5, 0.28, 0.2], [0.3, 0.3, 0.38], [0.6, 0.5, 0.3]], guard: [0.55, 0.1, 0.16], guardBlue: [0.14, 0.24, 0.55], enemy: [0.2, 0.2, 0.22], enemyAccent: [0.45, 0.32, 0.1], iron: [0.2, 0.21, 0.24], steel: [0.6, 0.62, 0.66], wood: [0.36, 0.24, 0.13], oak: [0.24, 0.16, 0.09], horse: [[0.35, 0.22, 0.12], [0.2, 0.14, 0.09], [0.55, 0.45, 0.35], [0.75, 0.72, 0.68]], ox: [0.45, 0.32, 0.2], straw: [0.79, 0.64, 0.29], canvas: [0.85, 0.8, 0.68], flame: [1, 0.55, 0.12], flame2: [1, 0.85, 0.3], smoke: [0.35, 0.33, 0.31], stone: [0.55, 0.53, 0.48], scale: [0.2, 0.32, 0.18], wing: [0.5, 0.38, 0.24], boulder: [0.4, 0.39, 0.36], rain: [0.7, 0.78, 0.9], snow: [0.95, 0.96, 1], priest: [0.9, 0.88, 0.82], merchant: [0.55, 0.15, 0.2], crimson: PAL[11], blue: PAL[12] };
 
@@ -1874,7 +1930,7 @@ $('mbBreach').addEventListener('click', () => { ensureAudio(); breachGate(true);
 $('mbDragon').addEventListener('click', () => { ensureAudio(); summonDragon(); });
 $('mbGod').addEventListener('click', () => { cam.god = !cam.god; $('cGod').checked = cam.god; $('mbGod').classList.toggle('on', cam.god); status(cam.god ? 'Tap anywhere to drop a boulder' : 'Boulders off'); });
 $('mbFollow').addEventListener('click', () => { cam.follow = null; cam.cine = -1; status('Free camera'); });
-window.addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+window.addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); makeGradeTarget(); });
 /* control panel */
 $('sTime').addEventListener('input', e => { clock.t = parseFloat(e.target.value); });
 $('cAuto').addEventListener('change', e => clock.auto = e.target.checked);
@@ -1884,6 +1940,7 @@ $('selWeather').addEventListener('change', e => { WX.kind = e.target.value; });
 $('sWx').addEventListener('input', e => { WX.intensity = parseFloat(e.target.value); $('vWx').textContent = WX.intensity.toFixed(2); });
 $('cGod').addEventListener('change', e => { cam.god = e.target.checked; $('mbGod').classList.toggle('on', cam.god); status(cam.god ? 'God mode: click anywhere to drop a boulder' : 'God mode off'); });
 $('cShadow').addEventListener('change', e => { renderer.shadowMap.enabled = e.target.checked; sun.castShadow = e.target.checked; for (const m of [chunkMat, unitMat, debrisMat, waterMat]) m.needsUpdate = true; });
+$('cGrade').addEventListener('change', e => { GRADE.on = e.target.checked; });
 $('sVol').addEventListener('input', e => { setVolume(parseFloat(e.target.value)); $('vVol').textContent = parseFloat(e.target.value).toFixed(2); });
 $('bSeed').addEventListener('click', () => { const s = parseInt($('iSeed').value) || 1; rebuildWorld(s); });
 
@@ -1977,7 +2034,7 @@ function frame(now) {
   updateCamera(dt); updateLod(camera.position); updateSky();
   mouse.hoverT -= dt; if (mouse.hoverT > -0.1 && mouse.hoverT <= 0) { if (cam.cine < 0) updateHover(); else { parkClip(); document.getElementById('tip').style.display = 'none'; } mouse.hoverT = -1; }
   const [npcs, soldiers] = drawAll();
-  renderer.render(scene, camera);
+  gradeWatchdog(dt); renderFrame();
   hudT += dt; if (hudT > 0.4) { hudT = 0;
     _pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); _frustum.setFromProjectionMatrix(_pm); let drawn = 0; for (const c of chunks) { const m = c.useLod ? c.lod : c.mesh; if (m && m.geometry.boundingSphere && _frustum.intersectsSphere(m.geometry.boundingSphere)) drawn++; }
     $('hVox').textContent = (world.voxelCount + debris.length).toLocaleString(); $('hFps').textContent = fps.toFixed(0); $('hNpc').textContent = npcs; $('hSol').textContent = soldiers; $('hProj').textContent = projs.length; $('hDeb').textContent = debris.length; $('hTime').textContent = $('vTime').textContent; $('hChk').textContent = `${drawn}/${chunks.length}`; }
