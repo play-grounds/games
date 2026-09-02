@@ -1383,8 +1383,14 @@ let audio = null;
 const SND = { volume: 0.35, master: null };
 /* Browsers only start audio inside a real activation gesture (touchend / pointerup / click / keydown, NOT touchstart),
    so this is called from those handlers; the first time the context actually runs we confirm it on screen. */
+/* iOS keeps Web Audio silent under the ringer switch until an HTML media element has played; a tiny silent clip does that */
+let mediaUnlocked = false;
+function unlockMedia() { if (mediaUnlocked) return; mediaUnlocked = true; try { const el = document.createElement('audio'); el.setAttribute('playsinline', ''); el.setAttribute('x-webkit-airplay', 'deny'); el.loop = true; el.volume = 0.01; el.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA='; const p = el.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
 function ensureAudio() {
-  if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); SND.master = audio.createGain(); SND.master.gain.value = SND.volume; SND.master.connect(audio.destination);
+  if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); SND.master = audio.createGain(); SND.master.gain.value = SND.volume; /* phone mix: speakers cannot reproduce the low beds, so roll off below 160 Hz and lift presence; a silent media element played on
+       the first gesture moves iOS out of the ringer-muted session so Web Audio is heard even with the silent switch on */
+      if (IS_MOBILE) { const hp = audio.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 160; const pk = audio.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 1400; pk.Q.value = 0.8; pk.gain.value = 4; SND.master.connect(hp).connect(pk).connect(audio.destination); unlockMedia(); } else SND.master.connect(audio.destination);
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && audio && audio.state === 'suspended') audio.resume().catch(() => {}); });
     audio.onstatechange = () => { if (audio.state === 'running' && !SND.announced) { SND.announced = true; status('Sound on · volume slider in the Council panel'); } }; } catch (e) { audio = false; } }
   if (audio && audio.state === 'suspended') audio.resume().catch(() => {});
   if (audio && audio.state === 'running' && !SND.announced) { SND.announced = true; status('Sound on · volume slider in the Council panel'); }

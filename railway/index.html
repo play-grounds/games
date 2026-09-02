@@ -515,9 +515,15 @@ $('panelToggle').addEventListener('click', () => $('panel').classList.toggle('op
 /* steam chuffs paced to the wheels, a diesel drone that follows speed, a two-tone whistle and horn, crossing bells, a church bell
    on the hour, point clacks, and a crash. All through one master gain; unlocked on the first gesture; kept subtle. */
 let audio = null; const SND = { volume: 0.3, master: null, drone: null, announced: false };
+/* iOS keeps Web Audio silent under the ringer switch until an HTML media element has played; a tiny silent clip does that */
+let mediaUnlocked = false;
+function unlockMedia() { if (mediaUnlocked) return; mediaUnlocked = true; try { const el = document.createElement('audio'); el.setAttribute('playsinline', ''); el.setAttribute('x-webkit-airplay', 'deny'); el.loop = true; el.volume = 0.01; el.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA='; const p = el.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
 function ensureAudio() {
   if (audio === false) return null;
-  if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); SND.master = audio.createGain(); SND.master.gain.value = SND.volume; SND.master.connect(audio.destination);
+  if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); SND.master = audio.createGain(); SND.master.gain.value = SND.volume; /* phone mix: speakers cannot reproduce the low beds, so roll off below 160 Hz and lift presence; a silent media element played on
+       the first gesture moves iOS out of the ringer-muted session so Web Audio is heard even with the silent switch on */
+      if (IS_MOBILE) { const hp = audio.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 160; const pk = audio.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 1400; pk.Q.value = 0.8; pk.gain.value = 4; SND.master.connect(hp).connect(pk).connect(audio.destination); unlockMedia(); } else SND.master.connect(audio.destination);
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && audio && audio.state === 'suspended') audio.resume().catch(() => {}); });
     const o = audio.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 55; const f = audio.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 220; const g = audio.createGain(); g.gain.value = 0; const lfo = audio.createOscillator(); lfo.frequency.value = 7; const lg = audio.createGain(); lg.gain.value = 0.004; lfo.connect(lg).connect(g.gain); lfo.start(); o.connect(f).connect(g).connect(SND.master); o.start(); SND.drone = { o, g };
     audio.onstatechange = () => { if (audio.state === 'running' && !SND.announced) { SND.announced = true; status('Sound on · volume in the Signal Box'); } }; } catch (e) { audio = false; return null; } }
   if (audio.state === 'suspended') audio.resume().catch(() => {}); return audio;

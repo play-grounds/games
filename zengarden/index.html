@@ -424,9 +424,15 @@ $('panelToggle').addEventListener('click', () => $('panel').classList.toggle('op
 /* wind and a trickle of water as the bed; the bamboo fountain's clack, pentatonic chimes on gusts, gravel scrape under the rake,
    a stone's thud, koi sips, the frog's plop, a singing bowl with a long decay, and a temple bell on the hour. Quiet by default. */
 let audio = null; const SND = { volume: 0.35, master: null, wind: null, water: null, announced: false };
+/* iOS keeps Web Audio silent under the ringer switch until an HTML media element has played; a tiny silent clip does that */
+let mediaUnlocked = false;
+function unlockMedia() { if (mediaUnlocked) return; mediaUnlocked = true; try { const el = document.createElement('audio'); el.setAttribute('playsinline', ''); el.setAttribute('x-webkit-airplay', 'deny'); el.loop = true; el.volume = 0.01; el.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA='; const p = el.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
 function ensureAudio() {
   if (audio === false) return null;
-  if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); SND.master = audio.createGain(); SND.master.gain.value = SND.volume; SND.master.connect(audio.destination);
+  if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); SND.master = audio.createGain(); SND.master.gain.value = SND.volume; /* phone mix: speakers cannot reproduce the low beds, so roll off below 160 Hz and lift presence; a silent media element played on
+       the first gesture moves iOS out of the ringer-muted session so Web Audio is heard even with the silent switch on */
+      if (IS_MOBILE) { const hp = audio.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 160; const pk = audio.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 1400; pk.Q.value = 0.8; pk.gain.value = 4; SND.master.connect(hp).connect(pk).connect(audio.destination); unlockMedia(); } else SND.master.connect(audio.destination);
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && audio && audio.state === 'suspended') audio.resume().catch(() => {}); });
     const brown = (sec) => { const len = audio.sampleRate * sec, buf = audio.createBuffer(1, len, audio.sampleRate), d = buf.getChannelData(0); let b = 0; for (let i = 0; i < len; i++) { b = (b + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = b * 3.5; } const f = Math.floor(audio.sampleRate * 0.05); for (let i = 0; i < f; i++) { d[i] *= i / f; d[len - 1 - i] *= i / f; } return buf; };
     const loop = (buf) => { const s = audio.createBufferSource(); s.buffer = buf; s.loop = true; s.start(); return s; };
     const wf = audio.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 400; wf.Q.value = 0.7; const wg = audio.createGain(); wg.gain.value = 0.03; loop(brown(6)).connect(wf).connect(wg).connect(SND.master); const lfo = audio.createOscillator(); lfo.frequency.value = 0.08; const lg = audio.createGain(); lg.gain.value = 0.02; lfo.connect(lg).connect(wg.gain); lfo.start(); SND.wind = { g: wg, f: wf };
