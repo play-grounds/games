@@ -439,8 +439,8 @@ function ensureAudio() {
   if (audio === false) return null;
   if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); SND.master = audio.createGain(); SND.master.gain.value = SND.volume; SND.master.connect(audio.destination);
     const len = audio.sampleRate * 5, buf = audio.createBuffer(1, len, audio.sampleRate), d = buf.getChannelData(0); let b = 0; for (let i = 0; i < len; i++) { b = (b + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = b * 3.5; } const f = Math.floor(audio.sampleRate * 0.05); for (let i = 0; i < f; i++) { d[i] *= i / f; d[len - 1 - i] *= i / f; }
-    const src = audio.createBufferSource(); src.buffer = buf; src.loop = true; const bp = audio.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 3; const g = audio.createGain(); g.gain.value = 0.02; src.connect(bp).connect(g).connect(SND.master); src.start(); SND.whirr = { g, bp };
-    const hum = audio.createOscillator(); hum.type = 'sine'; hum.frequency.value = 96; const hg = audio.createGain(); hg.gain.value = 0.012; const h2 = audio.createOscillator(); h2.type = 'sine'; h2.frequency.value = 192.5; const hg2 = audio.createGain(); hg2.gain.value = 0.005; hum.connect(hg).connect(SND.master); h2.connect(hg2).connect(SND.master); hum.start(); h2.start(); SND.hum = hg;
+    const src = audio.createBufferSource(); src.buffer = buf; src.loop = true; const bp = audio.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 700; bp.Q.value = 0.9; const g = audio.createGain(); g.gain.value = 0.08; src.connect(bp).connect(g).connect(SND.master); src.start(); SND.whirr = { g, bp };
+    const hum = audio.createOscillator(); hum.type = 'sine'; hum.frequency.value = 96; const hg = audio.createGain(); hg.gain.value = 0.03; const h2 = audio.createOscillator(); h2.type = 'sine'; h2.frequency.value = 192.5; const hg2 = audio.createGain(); hg2.gain.value = 0.012; hum.connect(hg).connect(SND.master); h2.connect(hg2).connect(SND.master); hum.start(); h2.start(); SND.hum = hg;
     audio.onstatechange = () => { if (audio.state === 'running' && !SND.announced) { SND.announced = true; status('Sound on · volume in The Mechanism'); } }; } catch (e) { audio = false; return null; } }
   if (audio.state === 'suspended') audio.resume().catch(() => {}); return audio;
 }
@@ -453,15 +453,15 @@ function thunder() { noiseBurst(2.6, 220, 0.6, 1.6); }
 function plop(p) { tone(300 + p * 120, 0.06 * p, 0.004, 0.2, 'sine', 90); }
 function tink() { tone(2100, 0.035, 0.002, 0.5); tone(3150, 0.015, 0.002, 0.35); }
 
-function tickTock(hi) { if (!running()) return; const t = audio.currentTime, o = audio.createOscillator(), g = audio.createGain(), f = audio.createBiquadFilter(); o.type = 'square'; o.frequency.value = hi ? 1900 : 1500; f.type = 'bandpass'; f.frequency.value = hi ? 2400 : 1800; f.Q.value = 6; g.gain.setValueAtTime(0.05, t); g.gain.exponentialRampToValueAtTime(0.0003, t + 0.045); o.connect(f).connect(g).connect(SND.master); o.start(t); o.stop(t + 0.06); }
-function chime(k = 1) { for (const [f, g, d] of [[1046, 0.03, 2.2], [1568, 0.018, 1.8], [2093, 0.01, 1.2]]) tone(f, g * k, 0.005, d); }
-function gong() { for (const [f, g, d] of [[196, 0.06, 4.5], [392, 0.03, 3.5], [587, 0.015, 2.5], [1176, 0.008, 1.2]]) tone(f, g, 0.01, d); }
-function ratchet() { if (!running()) return; for (let i = 0; i < 12; i++) setTimeout(() => tone(700 + i * 20, 0.02, 0.002, 0.05, 'square'), i * 230); }
+function tickTock(hi) { if (!running()) return; const t = audio.currentTime; const buf = audio.createBuffer(1, Math.floor(audio.sampleRate * 0.03), audio.sampleRate), d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2); const s = audio.createBufferSource(); s.buffer = buf; const f = audio.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = hi ? 3200 : 2300; f.Q.value = 1.2; const g = audio.createGain(); g.gain.value = 0.35; s.connect(f).connect(g).connect(SND.master); s.start(t); tone(hi ? 1800 : 1350, 0.12, 0.002, 0.07, 'triangle', hi ? 1200 : 900); }
+function chime(k = 1) { for (const [f, g, d] of [[1046, 0.07, 2.4], [1568, 0.04, 2.0], [2093, 0.02, 1.3]]) tone(f, g * k, 0.005, d); }
+function gong() { for (const [f, g, d] of [[196, 0.14, 4.5], [392, 0.07, 3.5], [587, 0.035, 2.5], [1176, 0.015, 1.2]]) tone(f, g, 0.01, d); }
+function ratchet() { if (!running()) return; for (let i = 0; i < 12; i++) setTimeout(() => tone(700 + i * 20, 0.06, 0.002, 0.05, 'square'), i * 230); }
 function updateSound(dt) {
   if (!running()) return; const t = audio.currentTime;
   const tickPhase = Math.floor(mech.tick * 2); if (tickPhase !== SND.lastTick) { SND.lastTick = tickPhase; tickTock(tickPhase % 2 === 0); }
-  SND.whirr.g.gain.setTargetAtTime(0.012 + Math.min(1, sim.speed / 8) * 0.05 + (mech.winding > 0 ? 0.02 : 0), t, 0.3); SND.whirr.bp.frequency.setTargetAtTime(700 + Math.min(1, sim.speed / 8) * 900, t, 0.3);
-  SND.hum.gain.setTargetAtTime(0.004 + sim.lamp * 0.012, t, 0.3);
+  SND.whirr.g.gain.setTargetAtTime(0.07 + Math.min(1, sim.speed / 8) * 0.18 + (mech.winding > 0 ? 0.1 : 0), t, 0.3); SND.whirr.bp.frequency.setTargetAtTime(600 + Math.min(1, sim.speed / 8) * 900, t, 0.3);
+  SND.hum.gain.setTargetAtTime(0.01 + sim.lamp * 0.03, t, 0.3);
   const yr = Math.floor(sim.years); if (yr !== SND.lastYear) { SND.lastYear = yr; chime(0.7); }
 }
 
