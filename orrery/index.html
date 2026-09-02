@@ -316,13 +316,13 @@ const gears = [
 const mech = { balance: 0, balanceV: 0, tick: 0, key: 0, winding: 0, spring: 1 };
 function drawGears(P2, dt, speed) {
   const gz = -0.5;
-  for (const g of gears) { const rot = g.escape ? (Math.floor(mech.tick * 2) / g.teeth * TAU + (mech.tick * 2 % 1 > 0.85 ? 0 : 0)) : g.ang; if (!g.escape) g.ang += g.rate * speed * dt * 0.35;
+  for (const g of gears) { const rot = g.escape ? Math.floor(mech.tick) / g.teeth * TAU : g.ang; if (!g.escape) g.ang += g.rate * speed * dt * 0.35;
     const segs = g.teeth; for (let i = 0; i < segs; i++) { const a = rot + i / segs * TAU; const cx = g.x + Math.cos(a) * g.r, cy = g.y + Math.sin(a) * g.r; P2.rbox(cx, cy, gz, 0.42, TAU * g.r / segs * 0.95, g.thick, 0, 0, a, C.brass); P2.rbox(g.x + Math.cos(a) * (g.r + 0.32), g.y + Math.sin(a) * (g.r + 0.32), gz, 0.34, TAU * g.r / segs * 0.45, g.thick, 0, 0, a, C.brassHi); }
     for (let k = 0; k < 4; k++) { const a = rot + k * Math.PI / 2; P2.rbox(g.x + Math.cos(a) * g.r * 0.5, g.y + Math.sin(a) * g.r * 0.5, gz, g.r, 0.22, g.thick * 0.6, 0, 0, a, C.brass2); }
     P2.box(g.x, g.y, gz, 0.6, 0.6, g.thick + 0.3, C.steel); }
   // escapement pallet rocking on the escape wheel, balance wheel swinging above
-  const ew = gears[5]; const rock = Math.sin(mech.tick * TAU) * 0.25; P2.rbox(ew.x, ew.y + ew.r + 0.9, gz, 1.9, 0.25, 0.4, 0, 0, rock, C.steel); P2.rbox(ew.x - 0.8, ew.y + ew.r + 0.55, gz, 0.22, 0.6, 0.4, 0, 0, rock, C.steel); P2.rbox(ew.x + 0.8, ew.y + ew.r + 0.55, gz, 0.22, 0.6, 0.4, 0, 0, rock, C.steel);
-  const bx = -3.6, by = -1.6 + ew.r + 2.9; const ba = Math.sin(mech.tick * TAU + 0.5) * 1.3; for (let i = 0; i < 20; i++) { const a = ba + i / 20 * TAU; P2.rbox(bx + Math.cos(a) * 1.4, by + Math.sin(a) * 1.4, gz + 0.5, 0.3, 0.46, 0.14, 0, 0, a, C.brassHi); } P2.rbox(bx, by, gz + 0.5, 2.6, 0.12, 0.1, 0, 0, ba, C.steel); P2.rbox(bx, by, gz + 0.5, 0.12, 2.6, 0.1, 0, 0, ba, C.steel); P2.box(bx, by, gz + 0.5, 0.3, 0.3, 0.5, C.steel);
+  const ew = gears[5]; const rock = Math.sin(mech.tick * Math.PI) * 0.25; P2.rbox(ew.x, ew.y + ew.r + 0.9, gz, 1.9, 0.25, 0.4, 0, 0, rock, C.steel); P2.rbox(ew.x - 0.8, ew.y + ew.r + 0.55, gz, 0.22, 0.6, 0.4, 0, 0, rock, C.steel); P2.rbox(ew.x + 0.8, ew.y + ew.r + 0.55, gz, 0.22, 0.6, 0.4, 0, 0, rock, C.steel);
+  const bx = -3.6, by = -1.6 + ew.r + 2.9; const ba = Math.sin(mech.tick * Math.PI + 0.5) * 1.3; for (let i = 0; i < 20; i++) { const a = ba + i / 20 * TAU; P2.rbox(bx + Math.cos(a) * 1.4, by + Math.sin(a) * 1.4, gz + 0.5, 0.3, 0.46, 0.14, 0, 0, a, C.brassHi); } P2.rbox(bx, by, gz + 0.5, 2.6, 0.12, 0.1, 0, 0, ba, C.steel); P2.rbox(bx, by, gz + 0.5, 0.12, 2.6, 0.1, 0, 0, ba, C.steel); P2.box(bx, by, gz + 0.5, 0.3, 0.3, 0.5, C.steel);
   // mainspring barrel and the winding key sticking out of the right arch
   const sp = mech.spring; for (let i = 0; i < 14; i++) { const a = mech.key + i / 14 * TAU; P2.rbox(5.2 + Math.cos(a) * 1.9, -1.4 + Math.sin(a) * 1.9, gz, 0.3, 0.85, 0.7, 0, 0, a, i % 2 ? C.iron : C.brass2); } P2.box(5.2, -1.4, gz, 0.5, 0.5, 1.4, C.steel);
   const kz = 10.4; P2.rbox(6.5, -4.5, kz, 0.35, 0.35, 2.2, 0, 0, 0, C.steel); P2.rbox(6.5, -4.5, kz + 1.2, 2.2, 0.4, 0.4, 0, 0, mech.key * 0.5, C.brassHi); P2.rbox(6.5, -4.5, kz + 1.2, 0.4, 2.2, 0.4, 0, 0, mech.key * 0.5, C.brassHi);
@@ -453,13 +453,13 @@ function thunder() { noiseBurst(2.6, 220, 0.6, 1.6); }
 function plop(p) { tone(300 + p * 120, 0.06 * p, 0.004, 0.2, 'sine', 90); }
 function tink() { tone(2100, 0.035, 0.002, 0.5); tone(3150, 0.015, 0.002, 0.35); }
 
-function tickTock(hi) { if (!running()) return; const t = audio.currentTime; const buf = audio.createBuffer(1, Math.floor(audio.sampleRate * 0.03), audio.sampleRate), d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2); const s = audio.createBufferSource(); s.buffer = buf; const f = audio.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = hi ? 3200 : 2300; f.Q.value = 1.2; const g = audio.createGain(); g.gain.value = 0.35; s.connect(f).connect(g).connect(SND.master); s.start(t); tone(hi ? 1800 : 1350, 0.12, 0.002, 0.07, 'triangle', hi ? 1200 : 900); }
+function tickTock(hi) { if (!running()) return; const t = audio.currentTime; const buf = audio.createBuffer(1, Math.floor(audio.sampleRate * 0.03), audio.sampleRate), d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2); const s = audio.createBufferSource(); s.buffer = buf; const f = audio.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = hi ? 3200 : 2300; f.Q.value = 1.6; const g = audio.createGain(); g.gain.value = hi ? 0.13 : 0.09; s.connect(f).connect(g).connect(SND.master); s.start(t); if (hi) tone(1500, 0.03, 0.002, 0.06, 'triangle', 1000); }
 function chime(k = 1) { for (const [f, g, d] of [[1046, 0.07, 2.4], [1568, 0.04, 2.0], [2093, 0.02, 1.3]]) tone(f, g * k, 0.005, d); }
 function gong() { for (const [f, g, d] of [[196, 0.14, 4.5], [392, 0.07, 3.5], [587, 0.035, 2.5], [1176, 0.015, 1.2]]) tone(f, g, 0.01, d); }
 function ratchet() { if (!running()) return; for (let i = 0; i < 12; i++) setTimeout(() => tone(700 + i * 20, 0.06, 0.002, 0.05, 'square'), i * 230); }
 function updateSound(dt) {
   if (!running()) return; const t = audio.currentTime;
-  const tickPhase = Math.floor(mech.tick * 2); if (tickPhase !== SND.lastTick) { SND.lastTick = tickPhase; tickTock(tickPhase % 2 === 0); }
+  const tickPhase = Math.floor(mech.tick); if (tickPhase !== SND.lastTick) { SND.lastTick = tickPhase; tickTock(tickPhase % 2 === 0); }
   SND.whirr.g.gain.setTargetAtTime(0.07 + Math.min(1, sim.speed / 8) * 0.18 + (mech.winding > 0 ? 0.1 : 0), t, 0.3); SND.whirr.bp.frequency.setTargetAtTime(600 + Math.min(1, sim.speed / 8) * 900, t, 0.3);
   SND.hum.gain.setTargetAtTime(0.01 + sim.lamp * 0.03, t, 0.3);
   const yr = Math.floor(sim.years); if (yr !== SND.lastYear) { SND.lastYear = yr; chime(0.7); }
