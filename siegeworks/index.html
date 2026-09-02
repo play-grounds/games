@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Siegeworks</title>
 <meta name="description" content="A voxel diorama of a medieval capital under siege: a living city with a day/night cycle, marching armies, trebuchets and dragons, and walls that crumble voxel by voxel. Runs in the browser, no install.">
 <meta name="theme-color" content="#1a1712">
@@ -23,7 +23,7 @@
 <meta name="twitter:image" content="https://play-grounds.github.io/games/siegeworks/og.jpg">
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#1a1712;font-family:Georgia,'Times New Roman',serif;color:#e8dcc4}
-  #c{display:block;width:100%;height:100%}
+  #c{display:block;width:100%;height:100%;touch-action:none}
   #hud{position:fixed;left:12px;top:12px;background:rgba(20,16,10,.72);border:1px solid #5a4a30;padding:8px 12px;font-size:12px;line-height:1.5;pointer-events:none;min-width:170px}
   #hud b{color:#d9b85a;font-weight:normal;letter-spacing:.08em;font-size:13px}
   #hud .v{color:#fff;float:right;font-family:monospace}
@@ -44,6 +44,24 @@
   #load small{font-size:12px;color:#8a7a5a;margin-top:10px;letter-spacing:.05em}
   #tip{position:fixed;pointer-events:none;background:rgba(20,16,10,.85);border:1px solid #5a4a30;padding:4px 8px;font-size:11px;color:#f0e0b0;display:none;white-space:nowrap}
   #hide{position:fixed;right:12px;bottom:12px;font-size:11px;color:#8a7a5a;cursor:pointer}
+  /* ---- mobile: collapsible panel, on-screen buttons for the keyboard actions, compact HUD ---- */
+  #panelToggle{display:none;position:fixed;right:12px;top:12px;z-index:3;background:rgba(20,16,10,.85);border:1px solid #7a6440;color:#d9b85a;font-family:inherit;font-size:13px;letter-spacing:.08em;padding:7px 10px}
+  #mobilebar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:3;gap:6px;justify-content:center;padding:8px 8px calc(8px + env(safe-area-inset-bottom));background:rgba(20,16,10,.78);border-top:1px solid #5a4a30}
+  #mobilebar button{flex:1;max-width:120px;background:#3a2e1c;color:#e8dcc4;border:1px solid #7a6440;padding:9px 4px;font-family:inherit;font-size:12px;letter-spacing:.04em}
+  #mobilebar button.on{background:#7a5a20;color:#fff}
+  @media (pointer:coarse),(max-width:820px){
+    #keys{display:none}
+    #panelToggle{display:block}
+    #mobilebar{display:flex}
+    #panel{display:none;top:50px;right:12px;left:auto;width:min(230px,calc(100vw - 24px));max-height:calc(100vh - 140px);overflow:auto;-webkit-overflow-scrolling:touch}
+    #panel.open{display:block}
+    #panel input[type=range]{height:28px}
+    #hud{font-size:11px;padding:6px 10px;min-width:0;line-height:1.45;top:calc(12px + env(safe-area-inset-top))}
+    #hud b{font-size:12px}
+    #status{bottom:calc(64px + env(safe-area-inset-bottom));font-size:13px;max-width:90vw;text-align:center}
+    #load{font-size:18px;letter-spacing:.14em}
+    body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  }
 </style>
 </head>
 <body>
@@ -83,6 +101,14 @@
 <div id="keys">
   <kbd>drag</kbd> orbit &nbsp;<kbd>right-drag</kbd> pan &nbsp;<kbd>wheel</kbd> zoom &nbsp;<kbd>click</kbd> follow unit/vehicle &nbsp;<kbd>hover</kbd> slice building<br>
   <kbd>Space</kbd> cinematic paths &nbsp;<kbd>B</kbd> breach the gatehouse &nbsp;<kbd>D</kbd> summon dragon &nbsp;<kbd>Esc</kbd> stop following &nbsp;<kbd>H</kbd> hide UI
+</div>
+<button id="panelToggle" type="button">COUNCIL ☰</button>
+<div id="mobilebar">
+  <button id="mbCine" type="button">Cinematic</button>
+  <button id="mbBreach" type="button">Breach</button>
+  <button id="mbDragon" type="button">Dragon</button>
+  <button id="mbGod" type="button">Boulder</button>
+  <button id="mbFollow" type="button">Unfollow</button>
 </div>
 <div id="tip"></div>
 <div id="status"></div>
@@ -885,14 +911,18 @@ function remeshDirty(maxN) { let n = 0; for (const key of world.dirty) { if (n++
 function updateLod(camPos) { const d2 = CFG.render.lodDistance * CFG.render.lodDistance; for (const c of chunks) { const want = c.center.distanceToSquared(camPos) > d2; if (want !== c.useLod) c.setLod(want); } }
 
 // ==== RENDER ========================================================================
+/* coarse-pointer devices get lighter defaults: 1x pixel ratio, no MSAA, shadows off, nearer LOD, fewer particles, smaller crowds */
+const IS_MOBILE = matchMedia('(pointer: coarse)').matches || (navigator.maxTouchPoints > 1 && innerWidth < 900);
+if (IS_MOBILE) { CFG.render.lodDistance = 150; CFG.render.shadowSize = 1024; CFG.physics.debrisMax = 4000; const U = CFG.units; for (const k of ['townsfolk', 'children', 'farmers', 'guards', 'archers', 'enemyArchers', 'cavalry']) U[k] = Math.round(U[k] * 0.65); document.getElementById('sArmy').value = 180; document.getElementById('vArmy').textContent = '180'; document.getElementById('cShadow').checked = false; }
+const PARTICLE_CAP = IS_MOBILE ? 5000 : 12000, WEATHER_CAP = IS_MOBILE ? 2500 : 6000;
 const canvas = document.getElementById('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap; renderer.localClippingEnabled = true;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !IS_MOBILE, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, IS_MOBILE ? 1 : 1.5)); renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = !IS_MOBILE; renderer.shadowMap.type = THREE.PCFShadowMap; renderer.localClippingEnabled = true;
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0xa9b6c6, 0.0018);
 const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.5, 1600);
-const sun = new THREE.DirectionalLight(0xffffff, 1); sun.castShadow = true; sun.shadow.mapSize.set(CFG.render.shadowSize, CFG.render.shadowSize);
+const sun = new THREE.DirectionalLight(0xffffff, 1); sun.castShadow = !IS_MOBILE; sun.shadow.mapSize.set(CFG.render.shadowSize, CFG.render.shadowSize);
 sun.shadow.camera.near = 20; sun.shadow.camera.far = 500; const SB = 150; sun.shadow.camera.left = -SB; sun.shadow.camera.right = SB; sun.shadow.camera.top = SB; sun.shadow.camera.bottom = -SB; sun.shadow.bias = -0.0015; sun.shadow.normalBias = 0.6;
 scene.add(sun); scene.add(sun.target);
 const hemi = new THREE.HemisphereLight(0xbfd4ff, 0x5a4a30, 0.5); scene.add(hemi);
@@ -1105,7 +1135,7 @@ function drawMill(m, t) { const P = pools.units; for (let i = 0; i < 8; i++) { c
 
 /* ---- particles: smoke, fire, dust, sparks, weather ---- */
 const particles = [];
-function spawnP(kind, x, y, z, vx, vy, vz, life, size) { if (particles.length > 12000) particles.shift(); particles.push({ kind, x, y, z, vx, vy, vz, life, age: 0, size }); }
+function spawnP(kind, x, y, z, vx, vy, vz, life, size) { if (particles.length > PARTICLE_CAP) particles.shift(); particles.push({ kind, x, y, z, vx, vy, vz, life, age: 0, size }); }
 function updateParticles(dt) {
   for (let i = particles.length - 1; i >= 0; i--) { const p = particles[i]; p.age += dt; if (p.age >= p.life) { particles[i] = particles[particles.length - 1]; particles.pop(); continue; }
     p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
@@ -1694,6 +1724,7 @@ function drawGate() {
 }
 
 // ==== INPUT =========================================================================
+const $ = id => document.getElementById(id);
 const cam = { target: new THREE.Vector3(0, 20, 0), dist: 150, az: 0.4, el: 0.75, follow: null, cine: -1, cineT: 0, god: false, hideUI: false };
 const mouse = { x: 0, y: 0, down: false, btn: 0, sx: 0, sy: 0, moved: false, hoverT: 0 };
 const cines = [];
@@ -1776,24 +1807,72 @@ window.addEventListener('mouseup', e => {
 });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('wheel', e => { e.preventDefault(); cam.cine = -1; cam.dist = clamp(cam.dist * Math.exp(e.deltaY * 0.0012), 6, 750); }, { passive: false });
+function cycleCinematic() { cam.cine = cam.cine >= cines.length - 1 ? -1 : cam.cine + 1; cam.follow = null; if (cam.cine >= 0) { cam.cineT = 0; status(`Cinematic: ${cines[cam.cine].name}`); } else status('Free camera'); }
+function toggleUI() { cam.hideUI = !cam.hideUI; for (const id of ['hud', 'panel', 'keys', 'mobilebar', 'panelToggle']) document.getElementById(id).style.display = cam.hideUI ? 'none' : ''; }
 window.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return; ensureAudio();
-  if (e.code === 'Space') { e.preventDefault(); cam.cine = cam.cine >= cines.length - 1 ? -1 : cam.cine + 1; cam.follow = null; if (cam.cine >= 0) { cam.cineT = 0; status(`Cinematic: ${cines[cam.cine].name}`); } else status('Free camera'); }
+  if (e.code === 'Space') { e.preventDefault(); cycleCinematic(); }
   else if (e.code === 'KeyB') breachGate(true);
   else if (e.code === 'KeyD') summonDragon();
   else if (e.code === 'Escape') { cam.follow = null; cam.cine = -1; }
-  else if (e.code === 'KeyH') { cam.hideUI = !cam.hideUI; for (const id of ['hud', 'panel', 'keys']) document.getElementById(id).style.display = cam.hideUI ? 'none' : ''; }
+  else if (e.code === 'KeyH') toggleUI();
 });
+/* ---- touch: one finger orbits, two fingers pinch-zoom and pan, tap follows, long-press slices a building ---- */
+const touch = { pts: new Map(), lastDist: 0, midX: 0, midY: 0, startX: 0, startY: 0, t0: 0, moved: false, timer: null, pressing: false };
+function touchPoint(t) { return { x: t.clientX, y: t.clientY }; }
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault(); ensureAudio();
+  for (const t of e.changedTouches) touch.pts.set(t.identifier, touchPoint(t));
+  clearTimeout(touch.timer);
+  if (e.touches.length === 1) { const t = e.touches[0]; touch.startX = t.clientX; touch.startY = t.clientY; touch.t0 = performance.now(); touch.moved = false; mouse.x = t.clientX; mouse.y = t.clientY;
+    touch.timer = setTimeout(() => { if (!touch.moved) { touch.pressing = true; cam.cine = -1; updateHover(); } }, 420); }
+  else if (e.touches.length >= 2) { const a = e.touches[0], b = e.touches[1]; touch.lastDist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); touch.midX = (a.clientX + b.clientX) / 2; touch.midY = (a.clientY + b.clientY) / 2; touch.moved = true; }
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (e.touches.length === 1) {
+    const t = e.touches[0], prev = touch.pts.get(t.identifier) || touchPoint(t); const dx = t.clientX - prev.x, dy = t.clientY - prev.y;
+    if (!touch.moved && Math.abs(t.clientX - touch.startX) + Math.abs(t.clientY - touch.startY) > 8) { touch.moved = true; clearTimeout(touch.timer); }
+    if (touch.pressing) { mouse.x = t.clientX; mouse.y = t.clientY; updateHover(); }
+    else if (touch.moved) { cam.cine = -1; cam.az -= dx * 0.006; cam.el = clamp(cam.el + dy * 0.006, 0.03, 1.52); }
+  } else if (e.touches.length >= 2) {
+    const a = e.touches[0], b = e.touches[1]; const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), mx = (a.clientX + b.clientX) / 2, my = (a.clientY + b.clientY) / 2;
+    if (touch.lastDist > 0) cam.dist = clamp(cam.dist * touch.lastDist / d, 6, 750);
+    const s = cam.dist * 0.0018, fx = Math.sin(cam.az), fz = Math.cos(cam.az), dx = mx - touch.midX, dy = my - touch.midY;
+    cam.target.x += (-dx * fz + dy * fx) * s * -1; cam.target.z += (dx * fx + dy * fz) * s; if (Math.abs(dx) + Math.abs(dy) > 1) cam.follow = null;
+    cam.cine = -1; touch.lastDist = d; touch.midX = mx; touch.midY = my;
+  }
+  for (const t of e.changedTouches) touch.pts.set(t.identifier, touchPoint(t));
+}, { passive: false });
+function touchEnd(e) {
+  e.preventDefault(); clearTimeout(touch.timer);
+  for (const t of e.changedTouches) touch.pts.delete(t.identifier);
+  if (touch.pressing) { touch.pressing = false; parkClip(); document.getElementById('tip').style.display = 'none'; mouse.x = -100; }
+  else if (e.touches.length === 0 && !touch.moved && performance.now() - touch.t0 < 400 && e.changedTouches.length === 1) {
+    const t = e.changedTouches[0];
+    if (cam.god) { const hit = pickUnderMouse(t.clientX, t.clientY); if (hit) dropBoulder(hit.x + 0.5, hit.y, hit.z + 0.5); }
+    else { const p = pickEntity(t.clientX, t.clientY); if (p) { cam.follow = p.e; cam.cine = -1; status(`Following a ${p.label}`); cam.dist = Math.min(cam.dist, 60); } else if (cam.follow) { cam.follow = null; status('Stopped following.'); } }
+  }
+  if (e.touches.length < 2) touch.lastDist = 0;
+  if (e.touches.length === 1) { const t = e.touches[0]; touch.pts.set(t.identifier, touchPoint(t)); touch.moved = true; }
+}
+canvas.addEventListener('touchend', touchEnd, { passive: false }); canvas.addEventListener('touchcancel', touchEnd, { passive: false });
+/* on-screen buttons (shown on coarse-pointer devices) */
+$('panelToggle').addEventListener('click', () => $('panel').classList.toggle('open'));
+$('mbCine').addEventListener('click', () => { ensureAudio(); cycleCinematic(); });
+$('mbBreach').addEventListener('click', () => { ensureAudio(); breachGate(true); });
+$('mbDragon').addEventListener('click', () => { ensureAudio(); summonDragon(); });
+$('mbGod').addEventListener('click', () => { cam.god = !cam.god; $('cGod').checked = cam.god; $('mbGod').classList.toggle('on', cam.god); status(cam.god ? 'Tap anywhere to drop a boulder' : 'Boulders off'); });
+$('mbFollow').addEventListener('click', () => { cam.follow = null; cam.cine = -1; status('Free camera'); });
 window.addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 /* control panel */
-const $ = id => document.getElementById(id);
 $('sTime').addEventListener('input', e => { clock.t = parseFloat(e.target.value); });
 $('cAuto').addEventListener('change', e => clock.auto = e.target.checked);
 $('sArmy').addEventListener('input', e => { $('vArmy').textContent = e.target.value; setArmySize(parseInt(e.target.value)); });
 $('sSiege').addEventListener('input', e => { siege.intensity = parseFloat(e.target.value); $('vSiege').textContent = siege.intensity.toFixed(2); });
 $('selWeather').addEventListener('change', e => { WX.kind = e.target.value; });
 $('sWx').addEventListener('input', e => { WX.intensity = parseFloat(e.target.value); $('vWx').textContent = WX.intensity.toFixed(2); });
-$('cGod').addEventListener('change', e => { cam.god = e.target.checked; status(cam.god ? 'God mode: click anywhere to drop a boulder' : 'God mode off'); });
+$('cGod').addEventListener('change', e => { cam.god = e.target.checked; $('mbGod').classList.toggle('on', cam.god); status(cam.god ? 'God mode: click anywhere to drop a boulder' : 'God mode off'); });
 $('cShadow').addEventListener('change', e => { renderer.shadowMap.enabled = e.target.checked; sun.castShadow = e.target.checked; for (const m of [chunkMat, unitMat, debrisMat, waterMat]) m.needsUpdate = true; });
 $('sVol').addEventListener('input', e => { setVolume(parseFloat(e.target.value)); $('vVol').textContent = parseFloat(e.target.value).toFixed(2); });
 $('bSeed').addEventListener('click', () => { const s = parseInt($('iSeed').value) || 1; rebuildWorld(s); });
@@ -1824,7 +1903,7 @@ function initClouds() { clouds.length = 0; for (let i = 0; i < 14; i++) { const 
 function updateWeather(dt) {
   WX.windDir += dt * 0.02; WX.windX = Math.cos(WX.windDir) * (1 + WX.intensity * 2); WX.windZ = Math.sin(WX.windDir) * (1 + WX.intensity * 2);
   for (const c of clouds) { c.x += WX.windX * 0.6 * dt; c.z += WX.windZ * 0.6 * dt; if (c.x > W + 60) c.x = -60; if (c.x < -60) c.x = W + 60; if (c.z > W + 60) c.z = -60; if (c.z < -60) c.z = W + 60; }
-  const want = (WX.kind === 'rain' || WX.kind === 'snow') ? Math.floor(WX.intensity * 6000) : 0; const D = WX.drops;
+  const want = (WX.kind === 'rain' || WX.kind === 'snow') ? Math.floor(WX.intensity * WEATHER_CAP) : 0; const D = WX.drops;
   while (D.length < want) D.push({ x: cam.target.x + rnd(-100, 100), y: cam.target.y + rnd(0, 70), z: cam.target.z + rnd(-100, 100), s: rnd(0.7, 1.3) });
   if (D.length > want) D.length = want;
   const rain = WX.kind === 'rain';
