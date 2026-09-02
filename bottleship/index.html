@@ -509,25 +509,47 @@ function drawWeather() {
 }
 
 // ==== SOUND =========================================================================
-let audio = null; const SND = { volume: 0.3, master: null, waves: null, announced: false };
+/* Ambience is built from brown noise (deep, no hiss) shaped by slow LFOs so it swells like surf rather than hissing like static:
+   a low rumble bed, a band-passed "wash" that breathes on two slow cycles, and a wind layer that only rises in storms.
+   On top: a distant bell buoy, occasional gulls by day, hull creaks, plops for splashes, booms and thunder.               */
+let audio = null; const SND = { volume: 0.3, master: null, sea: null, announced: false, buoyT: 12, gullT: 25 };
+function brownBuffer(seconds) { const len = Math.floor(audio.sampleRate * seconds), buf = audio.createBuffer(1, len, audio.sampleRate), d = buf.getChannelData(0); let b = 0; for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; b = (b + 0.02 * w) / 1.02; d[i] = b * 3.5; } // fade the loop seam
+  const f = Math.floor(audio.sampleRate * 0.05); for (let i = 0; i < f; i++) { const k = i / f; d[i] *= k; d[len - 1 - i] *= k; } return buf; }
 function ensureAudio() {
   if (audio === false) return null;
   if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); SND.master = audio.createGain(); SND.master.gain.value = SND.volume; SND.master.connect(audio.destination);
-    // sea: looping filtered noise with a slow swell
-    const len = audio.sampleRate * 4, buf = audio.createBuffer(1, len, audio.sampleRate), d = buf.getChannelData(0); let b0 = 0, b1 = 0; for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; b0 = 0.99 * b0 + w * 0.02; b1 = 0.96 * b1 + w * 0.06; d[i] = (b0 + b1) * 2.5; }
-    const src = audio.createBufferSource(); src.buffer = buf; src.loop = true; const lp = audio.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420; const g = audio.createGain(); g.gain.value = 0.35; const lfo = audio.createOscillator(); lfo.frequency.value = 0.11; const lg = audio.createGain(); lg.gain.value = 0.18; lfo.connect(lg).connect(g.gain); lfo.start(); src.connect(lp).connect(g).connect(SND.master); src.start(); SND.waves = { g, lp };
+    const loop = (buf) => { const src = audio.createBufferSource(); src.buffer = buf; src.loop = true; src.start(); return src; };
+    const lfo = (hz, depth, target, phase = 0) => { const o = audio.createOscillator(); o.frequency.value = hz; const g = audio.createGain(); g.gain.value = depth; o.connect(g).connect(target); o.start(audio.currentTime + phase); return o; };
+    const b1 = brownBuffer(6), b2 = brownBuffer(7.3), b3 = brownBuffer(5.1);
+    // rumble bed
+    const rumbleF = audio.createBiquadFilter(); rumbleF.type = 'lowpass'; rumbleF.frequency.value = 150; rumbleF.Q.value = 0.5; const rumbleG = audio.createGain(); rumbleG.gain.value = 0.16; loop(b1).connect(rumbleF).connect(rumbleG).connect(SND.master);
+    // wash: breathes on two slow cycles, filter drifts with the swell
+    const washF = audio.createBiquadFilter(); washF.type = 'bandpass'; washF.frequency.value = 420; washF.Q.value = 0.55; const washG = audio.createGain(); washG.gain.value = 0.07; loop(b2).connect(washF).connect(washG).connect(SND.master);
+    lfo(0.12, 0.05, washG.gain); lfo(0.071, 0.035, washG.gain, 2.1); lfo(0.12, 140, washF.frequency);
+    // wind: nearly silent in fair weather
+    const windF = audio.createBiquadFilter(); windF.type = 'bandpass'; windF.frequency.value = 650; windF.Q.value = 1.8; const windG = audio.createGain(); windG.gain.value = 0; loop(b3).connect(windF).connect(windG).connect(SND.master); lfo(0.31, 0.02, windG.gain); lfo(0.19, 220, windF.frequency);
+    SND.sea = { rumbleG, washG, washF, windG };
     audio.onstatechange = () => { if (audio.state === 'running' && !SND.announced) { SND.announced = true; status('Sound on · volume in the Captain\'s Table'); } }; } catch (e) { audio = false; return null; } }
   if (audio.state === 'suspended') audio.resume().catch(() => {}); return audio;
 }
 function setVolume(v) { SND.volume = v; if (SND.master) SND.master.gain.setTargetAtTime(v, audio.currentTime, 0.05); }
-function updateSound() { if (SND.waves) { SND.waves.g.gain.setTargetAtTime(0.25 + sea.amp * 0.3 + sea.storm * 0.5, audio.currentTime, 0.5); SND.waves.lp.frequency.setTargetAtTime(380 + sea.storm * 700, audio.currentTime, 0.5); } }
-function noiseBurst(len, freq, gain, decayPow = 3) { if (!audio || audio.state !== 'running') return; const t = audio.currentTime, buf = audio.createBuffer(1, audio.sampleRate * len, audio.sampleRate), d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, decayPow); const s = audio.createBufferSource(); s.buffer = buf; const f = audio.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = freq; const g = audio.createGain(); g.gain.value = gain; s.connect(f).connect(g).connect(SND.master); s.start(t); }
-function boom() { noiseBurst(0.9, 260, 0.5, 2.5); }
-function thunder() { noiseBurst(2.4, 160, 0.55, 1.6); }
-function plop(p) { if (!audio || audio.state !== 'running') return; const t = audio.currentTime, o = audio.createOscillator(), g = audio.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(320 + p * 120, t); o.frequency.exponentialRampToValueAtTime(90, t + 0.18); g.gain.setValueAtTime(0.08 * p, t); g.gain.exponentialRampToValueAtTime(0.0005, t + 0.25); o.connect(g).connect(SND.master); o.start(t); o.stop(t + 0.3); }
-function tink() { if (!audio || audio.state !== 'running') return; const t = audio.currentTime; for (const f of [2100, 3150]) { const o = audio.createOscillator(), g = audio.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.05, t); g.gain.exponentialRampToValueAtTime(0.0005, t + 0.5); o.connect(g).connect(SND.master); o.start(t); o.stop(t + 0.55); } }
+function updateSound() { if (!SND.sea) return; const t = audio.currentTime, s = SND.sea, k = sea.amp * 0.6 + sea.storm; s.rumbleG.gain.setTargetAtTime(0.12 + k * 0.14, t, 1.5); s.washG.gain.setTargetAtTime(0.05 + k * 0.09, t, 1.5); s.washF.frequency.setTargetAtTime(400 + sea.storm * 350, t, 2); s.windG.gain.setTargetAtTime(sea.storm * 0.075 + sea.wind * 0.01, t, 2); }
+const running = () => audio && audio.state === 'running';
+function tone(freq, gain, attack, decay, type = 'sine', sweepTo = null) { if (!running()) return; const t = audio.currentTime, o = audio.createOscillator(), g = audio.createGain(); o.type = type; o.frequency.setValueAtTime(freq, t); if (sweepTo) o.frequency.exponentialRampToValueAtTime(sweepTo, t + decay); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(gain, t + attack); g.gain.exponentialRampToValueAtTime(0.0002, t + attack + decay); o.connect(g).connect(SND.master); o.start(t); o.stop(t + attack + decay + 0.05); }
+function noiseBurst(len, freq, gain, decayPow = 3) { if (!running()) return; const t = audio.currentTime, buf = audio.createBuffer(1, audio.sampleRate * len, audio.sampleRate), d = buf.getChannelData(0); let b = 0; for (let i = 0; i < d.length; i++) { b = (b + 0.05 * (Math.random() * 2 - 1)) / 1.05; d[i] = b * 4 * Math.pow(1 - i / d.length, decayPow); } const s = audio.createBufferSource(); s.buffer = buf; const f = audio.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = freq; const g = audio.createGain(); g.gain.value = gain; s.connect(f).connect(g).connect(SND.master); s.start(t); }
+function boom() { noiseBurst(0.9, 320, 0.7, 2.5); tone(60, 0.12, 0.005, 0.5, 'sine', 35); }
+function thunder() { noiseBurst(2.6, 220, 0.6, 1.6); }
+function plop(p) { tone(300 + p * 120, 0.06 * p, 0.004, 0.2, 'sine', 90); }
+function tink() { tone(2100, 0.035, 0.002, 0.5); tone(3150, 0.015, 0.002, 0.35); }
 let creakT = 8;
-function updateCreaks(dt) { creakT -= dt * (1 + sea.storm * 2); if (creakT <= 0 && audio && audio.state === 'running') { creakT = rnd(6, 15); const t = audio.currentTime, o = audio.createOscillator(), g = audio.createGain(), f = audio.createBiquadFilter(); o.type = 'sawtooth'; o.frequency.setValueAtTime(70, t); o.frequency.linearRampToValueAtTime(rnd(90, 140), t + 0.7); f.type = 'lowpass'; f.frequency.value = 500; g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.035, t + 0.25); g.gain.exponentialRampToValueAtTime(0.0002, t + 0.9); o.connect(f).connect(g).connect(SND.master); o.start(t); o.stop(t + 1); } }
+function updateAmbience(dt) {
+  if (!running()) return;
+  creakT -= dt * (1 + sea.storm * 2); if (creakT <= 0) { creakT = rnd(7, 16); const t = audio.currentTime, o = audio.createOscillator(), g = audio.createGain(), f = audio.createBiquadFilter(); o.type = 'sawtooth'; o.frequency.setValueAtTime(70, t); o.frequency.linearRampToValueAtTime(rnd(90, 130), t + 0.7); f.type = 'lowpass'; f.frequency.value = 420; g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.022, t + 0.3); g.gain.exponentialRampToValueAtTime(0.0002, t + 0.9); o.connect(f).connect(g).connect(SND.master); o.start(t); o.stop(t + 1); }
+  // bell buoy: a soft two-partial chime that rolls with the swell
+  SND.buoyT -= dt * (0.6 + sea.amp + sea.storm); if (SND.buoyT <= 0) { SND.buoyT = rnd(9, 20); tone(660, 0.022, 0.01, 2.6); tone(1320, 0.008, 0.01, 1.6); setTimeout(() => { tone(660, 0.014, 0.01, 2.2); }, 380 + rnd(300)); }
+  // gulls by day, in fair weather
+  const night = shaderU.uNight.value; if (night < 0.3 && sea.storm < 0.4) { SND.gullT -= dt; if (SND.gullT <= 0) { SND.gullT = rnd(18, 45); const n = rint(1, 3); for (let i = 0; i < n; i++) setTimeout(() => { tone(rnd(1300, 1600), 0.014, 0.03, 0.28, 'triangle', rnd(800, 1000)); }, i * 420); } }
+}
 
 // ==== INPUT =========================================================================
 const cam = { target: new THREE.Vector3(2, -1, 0), dist: 62, az: 0.55, el: 0.32, hideUI: false }; let shake = 0;
@@ -566,7 +588,7 @@ let last = performance.now(), fps = 60, frames = 0, fpsT = 0, hudT = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = clamp((now - last) / 1000, 0, 0.05); last = now; frames++; fpsT += dt; if (fpsT > 0.5) { fps = frames / fpsT; frames = 0; fpsT = 0; }
-  updateWeather(dt); updateOcean(dt); updateShip(dt); updateBalls(dt); updateLife(dt); updateSpray(dt); updateCreaks(dt); if (audio) updateSound();
+  updateWeather(dt); updateOcean(dt); updateShip(dt); updateBalls(dt); updateLife(dt); updateSpray(dt); updateAmbience(dt); if (audio) updateSound();
   pools.dyn.begin(); pools.glow.begin(); pools.cloud.begin(); pools.sail.begin();
   drawShipDynamic(); drawBalls(); drawLife(); drawWeather();
   pools.dyn.end(); pools.glow.end(); pools.cloud.end(); pools.sail.end();
