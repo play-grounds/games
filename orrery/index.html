@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Clockwork Orrery</title>
+<meta name="description" content="A brass orrery under a glass dome: eight voxel planets with weather and moons, a comet, an asteroid belt and a ticking gear train, lit by a real sun that casts eclipse shadows. Runs in the browser.">
+<meta name="theme-color" content="#120e0a">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%AA%90%3C/text%3E%3C/svg%3E">
+<link rel="canonical" href="https://play-grounds.github.io/games/orrery/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="play-grounds games">
+<meta property="og:title" content="Clockwork Orrery">
+<meta property="og:description" content="A brass orrery under a glass dome: eight voxel planets with weather and moons, a comet, an asteroid belt and a ticking gear train, lit by a real sun that casts eclipse shadows. Runs in the browser.">
+<meta property="og:url" content="https://play-grounds.github.io/games/orrery/">
+<meta property="og:image" content="https://play-grounds.github.io/games/orrery/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A voxel brass orrery with glowing sun and planets under a glass dome on a desk at night">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Clockwork Orrery">
+<meta name="twitter:description" content="A brass orrery under a glass dome: eight voxel planets with weather and moons, a comet, an asteroid belt and a ticking gear train.">
+<meta name="twitter:image" content="https://play-grounds.github.io/games/orrery/og.jpg">
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#120e0a;font-family:Georgia,'Times New Roman',serif;color:#e8dcc4}
+  #c{display:block;width:100%;height:100%;touch-action:none}
+  #hud{position:fixed;left:12px;top:calc(12px + env(safe-area-inset-top));background:rgba(20,16,10,.7);border:1px solid #5a4a30;padding:8px 12px;font-size:12px;line-height:1.5;pointer-events:none;min-width:160px}
+  #hud b{color:#d9b85a;font-weight:normal;letter-spacing:.14em;font-size:13px}
+  #hud .v{color:#fff;float:right;font-family:monospace;margin-left:16px}
+  #panel{position:fixed;right:12px;top:12px;width:220px;background:rgba(20,16,10,.78);border:1px solid #5a4a30;padding:10px 12px;font-size:12px}
+  #panel h3{margin:0 0 6px;color:#d9b85a;font-size:13px;letter-spacing:.1em;font-weight:normal}
+  #panel label{display:block;margin:6px 0 2px;color:#c8b890}
+  #panel label span{float:right;color:#fff;font-family:monospace}
+  #panel input[type=range]{width:100%;margin:0;accent-color:#b8942e}
+  #panel .row{display:flex;gap:6px;align-items:center;margin-top:6px}
+  #panel .btns{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+  #panel button{background:#3a2e1c;color:#e8dcc4;border:1px solid #7a6440;padding:6px 6px;cursor:pointer;font-family:inherit;font-size:12px}
+  #panel button:hover{background:#5a4830}
+  #keys{position:fixed;left:12px;bottom:12px;background:rgba(20,16,10,.7);border:1px solid #5a4a30;padding:8px 12px;font-size:11px;line-height:1.6;color:#c8b890;max-width:440px}
+  #keys kbd{background:#3a2e1c;border:1px solid #7a6440;padding:0 5px;border-radius:3px;color:#fff;font-family:monospace}
+  #status{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);color:#f0e0b0;font-size:14px;text-shadow:0 1px 3px #000;pointer-events:none;opacity:0;transition:opacity .4s;text-align:center;max-width:90vw}
+  #tip{position:fixed;pointer-events:none;background:rgba(20,16,10,.85);border:1px solid #5a4a30;padding:5px 9px;font-size:11px;color:#f0e0b0;display:none;white-space:nowrap;line-height:1.5}
+  #tip b{color:#d9b85a;font-weight:normal;letter-spacing:.1em;font-size:12px}
+  #load{position:fixed;inset:0;background:#120e0a;display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:10;color:#d9b85a;font-size:22px;letter-spacing:.2em}
+  #load small{font-size:12px;color:#8a7a5a;margin-top:10px;letter-spacing:.05em}
+  #panelToggle{display:none;position:fixed;right:12px;top:12px;z-index:3;background:rgba(20,16,10,.85);border:1px solid #7a6440;color:#d9b85a;font-family:inherit;font-size:13px;letter-spacing:.08em;padding:7px 10px}
+  #mobilebar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:3;gap:6px;justify-content:center;padding:8px 8px calc(8px + env(safe-area-inset-bottom));background:rgba(20,16,10,.78);border-top:1px solid #5a4a30}
+  #mobilebar button{flex:1;max-width:120px;background:#3a2e1c;color:#e8dcc4;border:1px solid #7a6440;padding:9px 4px;font-family:inherit;font-size:12px}
+  @media (pointer:coarse),(max-width:820px){
+    #keys{display:none} #panelToggle{display:block} #mobilebar{display:flex}
+    #panel{display:none;top:50px;width:min(220px,calc(100vw - 24px));max-height:calc(100vh - 140px);overflow:auto} #panel.open{display:block}
+    #hud{font-size:11px;padding:6px 10px;min-width:0} #status{bottom:calc(64px + env(safe-area-inset-bottom));font-size:13px}
+    body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="load">CLOCKWORK ORRERY<small id="loadmsg">casting the brass…</small></div>
+<div id="hud"><b>CLOCKWORK ORRERY</b><br>FPS <span class="v" id="hFps">0</span><br>Voxels <span class="v" id="hVox">0</span><br>Earth years <span class="v" id="hYear">0</span><br>Following <span class="v" id="hFollow">—</span></div>
+<button id="panelToggle" type="button">MECHANISM ☰</button>
+<div id="panel">
+  <h3>THE MECHANISM</h3>
+  <label>Clock speed <span id="vSpeed">1.0×</span></label><input type="range" id="sSpeed" min="0" max="3" step="0.05" value="1">
+  <label>Sun lamp <span id="vLamp">0.8</span></label><input type="range" id="sLamp" min="0" max="1" step="0.05" value="0.8">
+  <label>Room light <span id="vRoom">0.4</span></label><input type="range" id="sRoom" min="0" max="1" step="0.05" value="0.4">
+  <label>Sound <span id="vVol">0.3</span></label><input type="range" id="sVol" min="0" max="1" step="0.05" value="0.3">
+  <div class="row"><input type="checkbox" id="cDome" checked><label style="margin:0">Glass dome</label></div>
+  <div class="row"><input type="checkbox" id="cLabels" checked><label style="margin:0">Hover labels</label></div>
+  <div class="btns"><button id="bEclipse">Eclipse</button><button id="bAlign">Grand conjunction</button><button id="bComet">Send the comet</button><button id="bWind">Wind the spring</button></div>
+</div>
+<div id="keys"><kbd>drag</kbd> orbit &nbsp;<kbd>wheel</kbd> zoom &nbsp;<kbd>right-drag</kbd> pan &nbsp;<kbd>click planet</kbd> follow &nbsp;<kbd>Space</kbd> cinematic &nbsp;<kbd>E</kbd> eclipse &nbsp;<kbd>A</kbd> conjunction &nbsp;<kbd>K</kbd> comet &nbsp;<kbd>W</kbd> wind &nbsp;<kbd>Esc</kbd> unfollow &nbsp;<kbd>H</kbd> hide UI</div>
+<div id="mobilebar"><button id="mbCine" type="button">Cinematic</button><button id="mbEclipse" type="button">Eclipse</button><button id="mbAlign" type="button">Align</button><button id="mbComet" type="button">Comet</button><button id="mbFollow" type="button">Unfollow</button></div>
+<div id="tip"></div>
+<div id="status"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+/* =====================================================================================
+   CLOCKWORK ORRERY — a brass planetarium under glass, driven by a ticking gear train.
+   Single file, Three.js r128 (pinned), no build step, no external assets.
+   Copyright (C) 2026 Melvin Carvalho. Licensed under the GNU AGPL v3.0 or later.
+
+   SYSTEMS:
+     CONFIG     sizes, planets, palette
+     UTIL       rng, noise, helpers
+     VOXELS     sparse voxel sets with face culling + vertex AO
+     RENDER     scene, lights (the sun is a real shadow-casting point light), pools
+     ROOM       desk, plinth, bookshelves, window, lamp, glass dome
+     PLANETS    procedural surfaces, clouds, rings, moons, sun, comet, asteroid belt
+     GEARS      gear train, escapement, balance wheel, winding key
+     WEATHER    Earth clouds and lightning, Mars dust, Jupiter spot, aurora
+     INPUT      orbit + touch, click-to-follow, hover labels, cinematics, panel
+     SOUND      tick-tock, gear whirr, chimes
+     LOOP
+   ===================================================================================== */
+
+// ==== CONFIG ========================================================================
+const CFG = {
+  seed: 42,
+  vox: 0.23,                       // planet voxel size (world units)
+  plateY: 0, plateR: 31, planetY: 4.6, domeR: 34.5, domeH: 30,
+  yearSec: 75,                     // real seconds per Earth orbit at speed 1
+  planets: [ // name, orbit radius, voxel radius, spin (rad per Earth-year at speed 1), tilt, moons [name, dist(vox), r(vox), period(years), colour]
+    { name: 'Mercury', R: 4.2, r: 3, spin: 9, tilt: 0.0, moons: [] },
+    { name: 'Venus', R: 6.4, r: 5, spin: -4, tilt: 0.05, moons: [] },
+    { name: 'Earth', R: 9.0, r: 6, spin: 40, tilt: 0.41, moons: [['Moon', 9, 1.6, 0.075, [0.7, 0.7, 0.68]]] },
+    { name: 'Mars', R: 11.6, r: 4, spin: 38, tilt: 0.44, moons: [['Phobos', 6, 0.8, 0.02, [0.5, 0.42, 0.36]], ['Deimos', 8.5, 0.7, 0.05, [0.55, 0.48, 0.4]]] },
+    { name: 'Jupiter', R: 16.2, r: 11, spin: 95, tilt: 0.05, moons: [['Io', 15, 1.4, 0.03, [0.85, 0.75, 0.35]], ['Europa', 18, 1.3, 0.05, [0.85, 0.82, 0.75]], ['Ganymede', 22, 1.8, 0.09, [0.6, 0.55, 0.5]], ['Callisto', 26, 1.6, 0.16, [0.4, 0.38, 0.36]]] },
+    { name: 'Saturn', R: 21.6, r: 9, spin: 88, tilt: 0.47, ring: [12, 17], moons: [['Titan', 22, 1.6, 0.12, [0.85, 0.6, 0.3]], ['Rhea', 19, 0.9, 0.06, [0.8, 0.8, 0.78]]] },
+    { name: 'Uranus', R: 26.0, r: 7, spin: -55, tilt: 1.7, ring: [9, 11], moons: [['Titania', 14, 1.0, 0.07, [0.7, 0.7, 0.7]], ['Oberon', 17, 0.9, 0.1, [0.6, 0.58, 0.56]]] },
+    { name: 'Neptune', R: 29.6, r: 7, spin: 60, tilt: 0.5, moons: [['Triton', 13, 1.2, 0.05, [0.75, 0.72, 0.7]]] }
+  ],
+  facts: { Mercury: 'Smallest planet · a year lasts 88 days', Venus: 'Hottest planet · spins backwards', Earth: 'Home · one moon, weather included', Mars: 'The red planet · two tiny moons', Jupiter: 'Largest planet · a storm older than telescopes', Saturn: 'Rings of ice · its day is ten hours', Uranus: 'Tipped on its side · rings stand upright', Neptune: 'Farthest planet · fastest winds', Sun: 'The lamp at the centre of everything', Comet: 'A dirty snowball, tail always away from the sun' }
+};
+
+// ==== UTIL ==========================================================================
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+let rng = mulberry32(CFG.seed);
+const rnd = (a = 1, b) => b === undefined ? rng() * a : a + rng() * (b - a);
+const rint = (a, b) => Math.floor(rnd(a, b + 1));
+const pick = arr => arr[Math.floor(rng() * arr.length)];
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = t => t * t * (3 - 2 * t);
+const sstep = (a, b, v) => smooth(clamp((v - a) / (b - a), 0, 1));
+const TAU = Math.PI * 2;
+function hash3(x, y, z) { let h = (x * 374761393 + y * 668265263 + z * 2147483647) | 0; h = (h ^ (h >> 13)) * 1274126177; return ((h ^ (h >> 16)) >>> 0) / 4294967296; }
+class Perlin { constructor(r) { this.p = new Uint8Array(512); const perm = []; for (let i = 0; i < 256; i++) perm[i] = i; for (let i = 255; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [perm[i], perm[j]] = [perm[j], perm[i]]; } for (let i = 0; i < 512; i++) this.p[i] = perm[i & 255]; }
+  grad(h, x, y, z) { const u = h < 8 ? x : y, v = h < 4 ? y : (h === 12 || h === 14 ? x : z); return ((h & 1) ? -u : u) + ((h & 2) ? -v : v); }
+  n(x, y, z = 0) { const X = Math.floor(x) & 255, Y = Math.floor(y) & 255, Z = Math.floor(z) & 255; x -= Math.floor(x); y -= Math.floor(y); z -= Math.floor(z); const u = smooth(x), v = smooth(y), w = smooth(z), p = this.p; const A = p[X] + Y, AA = p[A] + Z, AB = p[A + 1] + Z, B = p[X + 1] + Y, BA = p[B] + Z, BB = p[B + 1] + Z;
+    return lerp(lerp(lerp(this.grad(p[AA] & 15, x, y, z), this.grad(p[BA] & 15, x - 1, y, z), u), lerp(this.grad(p[AB] & 15, x, y - 1, z), this.grad(p[BB] & 15, x - 1, y - 1, z), u), v), lerp(lerp(this.grad(p[AA + 1] & 15, x, y, z - 1), this.grad(p[BA + 1] & 15, x - 1, y, z - 1), u), lerp(this.grad(p[AB + 1] & 15, x, y - 1, z - 1), this.grad(p[BB + 1] & 15, x - 1, y - 1, z - 1), u), v), w); }
+  fbm(x, y, z, o = 3) { let a = 1, f = 1, s = 0, n = 0; for (let i = 0; i < o; i++) { s += a * this.n(x * f, y * f, z * f); n += a; a *= 0.5; f *= 2; } return s / n; } }
+const noise = new Perlin(rng);
+const $ = id => document.getElementById(id);
+function status(msg) { const el = $('status'); el.textContent = msg; el.style.opacity = 1; clearTimeout(status.tm); status.tm = setTimeout(() => el.style.opacity = 0, 3000); }
+const IS_MOBILE = matchMedia('(pointer: coarse)').matches || (navigator.maxTouchPoints > 1 && innerWidth < 900);
+
+// ==== VOXELS ========================================================================
+class VoxelSet {
+  constructor(scale) { this.s = scale; this.m = new Map(); this.count = 0; }
+  key(x, y, z) { return ((x + 512) * 1024 + (y + 512)) * 1024 + (z + 512); }
+  set(x, y, z, c, e = 0) { const k = this.key(x, y, z); if (!this.m.has(k)) this.count++; this.m.set(k, { x, y, z, c, e }); }
+  has(x, y, z) { return this.m.has(this.key(x, y, z)); }
+  del(x, y, z) { if (this.m.delete(this.key(x, y, z))) this.count--; }
+  build(flat = false) {
+    const pos = [], nrm = [], col = [], emit = [], idx = []; const s = this.s;
+    const FACES = [ // normal, 4 corners (unit cube), the two tangent axes for AO
+      { n: [1, 0, 0], v: [[1, 0, 0], [1, 1, 0], [1, 1, 1], [1, 0, 1]], sh: 0.86 }, { n: [-1, 0, 0], v: [[0, 0, 1], [0, 1, 1], [0, 1, 0], [0, 0, 0]], sh: 0.78 },
+      { n: [0, 1, 0], v: [[0, 1, 0], [0, 1, 1], [1, 1, 1], [1, 1, 0]], sh: 1.0 }, { n: [0, -1, 0], v: [[0, 0, 1], [0, 0, 0], [1, 0, 0], [1, 0, 1]], sh: 0.5 },
+      { n: [0, 0, 1], v: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], sh: 0.9 }, { n: [0, 0, -1], v: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]], sh: 0.74 }];
+    const solid = (x, y, z) => this.m.has(this.key(x, y, z)) ? 1 : 0;
+    for (const v of this.m.values()) {
+      const jit = 0.92 + 0.16 * hash3(v.x, v.y, v.z);
+      for (const f of FACES) {
+        const nx = v.x + f.n[0], ny = v.y + f.n[1], nz = v.z + f.n[2]; if (solid(nx, ny, nz)) continue;
+        const b = pos.length / 3;
+        for (let k = 0; k < 4; k++) { const c = f.v[k]; pos.push((v.x + c[0]) * s, (v.y + c[1]) * s, (v.z + c[2]) * s); nrm.push(f.n[0], f.n[1], f.n[2]);
+          // AO: the two edge neighbours and the corner neighbour on the open side of this vertex
+          const dx = c[0] ? 1 : -1, dy = c[1] ? 1 : -1, dz = c[2] ? 1 : -1; let s1, s2, cc;
+          if (f.n[0]) { s1 = solid(nx, ny + dy, nz); s2 = solid(nx, ny, nz + dz); cc = solid(nx, ny + dy, nz + dz); } else if (f.n[1]) { s1 = solid(nx + dx, ny, nz); s2 = solid(nx, ny, nz + dz); cc = solid(nx + dx, ny, nz + dz); } else { s1 = solid(nx + dx, ny, nz); s2 = solid(nx, ny + dy, nz); cc = solid(nx + dx, ny + dy, nz); }
+          const ao = (s1 && s2) ? 0 : 3 - (s1 + s2 + cc); const a = flat ? 0.94 + 0.06 * jit : [0.5, 0.68, 0.85, 1][ao] * f.sh * jit;
+          col.push(v.c[0] * a, v.c[1] * a, v.c[2] * a); emit.push(v.e); }
+        idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+      }
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('aEmit', new THREE.Float32BufferAttribute(emit, 1)); g.setIndex(idx); g.computeBoundingSphere(); return g;
+  }
+}
+const C = {
+  brass: [0.78, 0.6, 0.28], brass2: [0.62, 0.46, 0.2], brassHi: [0.95, 0.8, 0.45], mahog: [0.36, 0.17, 0.1], mahog2: [0.3, 0.13, 0.08], desk: [0.32, 0.2, 0.12], desk2: [0.27, 0.16, 0.1], iron: [0.2, 0.2, 0.22], steel: [0.72, 0.74, 0.78],
+  paper: [0.85, 0.78, 0.6], ink: [0.15, 0.12, 0.1], candle: [0.95, 0.92, 0.8], flame: [1, 0.7, 0.25], wall: [0.24, 0.18, 0.13], shelf: [0.3, 0.17, 0.1], rug: [0.45, 0.14, 0.12], rug2: [0.6, 0.45, 0.2], moon: [0.9, 0.9, 0.85],
+  books: [[0.55, 0.15, 0.12], [0.15, 0.3, 0.5], [0.2, 0.4, 0.25], [0.6, 0.45, 0.15], [0.35, 0.2, 0.4], [0.7, 0.65, 0.55], [0.5, 0.3, 0.15], [0.12, 0.2, 0.3]]
+};
+
+// ==== RENDER ========================================================================
+const canvas = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !IS_MOBILE, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, IS_MOBILE ? 1 : 1.5)); renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0c0906);
+const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.2, 500);
+/* the sun: a real point light in the middle of the orrery, so day sides, terminators and eclipses come for free */
+const sunLight = new THREE.PointLight(0xffe9c0, 3.2, 110, 1.15); sunLight.position.set(0, CFG.planetY, 0); sunLight.castShadow = true; sunLight.shadow.mapSize.set(IS_MOBILE ? 512 : 1024, IS_MOBILE ? 512 : 1024); sunLight.shadow.camera.near = 1.5; sunLight.shadow.camera.far = 60; sunLight.shadow.bias = -0.004; sunLight.shadow.normalBias = 0.15; scene.add(sunLight);
+const roomLight = new THREE.PointLight(0xffb060, 1.2, 140, 1.6); roomLight.position.set(-44, 26, -26); scene.add(roomLight);
+const gearLight = new THREE.PointLight(0xffc070, 1.4, 22, 1.4); gearLight.position.set(1.5, -2.5, 7); scene.add(gearLight);
+const moonLight = new THREE.DirectionalLight(0x8fa8d8, 0.25); moonLight.position.set(40, 60, -60); scene.add(moonLight);
+const hemi = new THREE.HemisphereLight(0x3a3a55, 0x2a1a10, 0.35); scene.add(hemi);
+const ambient = new THREE.AmbientLight(0x202030, 0.5); scene.add(ambient);
+const shaderU = { uTime: { value: 0 } };
+function voxMaterial(extra = {}) {
+  const m = new THREE.MeshPhongMaterial(Object.assign({ vertexColors: true, shininess: 12, specular: 0x333333 }, extra));
+  m.onBeforeCompile = sh => { sh.uniforms.uTime = shaderU.uTime;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aEmit; varying float vEmit;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvEmit = aEmit;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vEmit; uniform float uTime;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\nif (vEmit > 0.5) { float fl = 0.9 + 0.1 * sin(uTime * 7.0 + vEmit * 13.0); totalEmissiveRadiance += (vEmit > 1.5 ? vec3(1.0, 0.62, 0.18) : vec3(1.0, 0.72, 0.3)) * fl; }'); };
+  return m;
+}
+const voxMat = voxMaterial(); const brassMat = voxMaterial({ shininess: 60, specular: 0x886633 });
+/* ---- instanced pools for everything that moves ---- */
+class BoxPool {
+  constructor(max, material, shadows = false) { this.mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), material, max); this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.mesh.frustumCulled = false; this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(max * 3), 3); this.mesh.instanceColor.setUsage(THREE.DynamicDrawUsage); this.mesh.castShadow = shadows; this.mesh.receiveShadow = shadows; this.max = max; this.n = 0; this.a = this.mesh.instanceMatrix.array; this.c = this.mesh.instanceColor.array; scene.add(this.mesh); }
+  begin() { this.n = 0; }
+  box(x, y, z, sx, sy, sz, c) { if (this.n >= this.max) return; const i = this.n++, a = this.a, o = i * 16; a[o] = sx; a[o + 1] = 0; a[o + 2] = 0; a[o + 3] = 0; a[o + 4] = 0; a[o + 5] = sy; a[o + 6] = 0; a[o + 7] = 0; a[o + 8] = 0; a[o + 9] = 0; a[o + 10] = sz; a[o + 11] = 0; a[o + 12] = x; a[o + 13] = y; a[o + 14] = z; a[o + 15] = 1; const k = i * 3; this.c[k] = c[0]; this.c[k + 1] = c[1]; this.c[k + 2] = c[2]; }
+  rbox(x, y, z, sx, sy, sz, yaw, pitch, roll, c) { if (this.n >= this.max) return; const i = this.n++, a = this.a, o = i * 16; const cy = Math.cos(yaw), sy_ = Math.sin(yaw), cx = Math.cos(pitch), sx_ = Math.sin(pitch), cz = Math.cos(roll), sz_ = Math.sin(roll);
+    const r00 = cy * cz + sy_ * sx_ * sz_, r01 = -cy * sz_ + sy_ * sx_ * cz, r02 = sy_ * cx, r10 = cx * sz_, r11 = cx * cz, r12 = -sx_, r20 = -sy_ * cz + cy * sx_ * sz_, r21 = sy_ * sz_ + cy * sx_ * cz, r22 = cy * cx;
+    a[o] = r00 * sx; a[o + 1] = r10 * sx; a[o + 2] = r20 * sx; a[o + 3] = 0; a[o + 4] = r01 * sy; a[o + 5] = r11 * sy; a[o + 6] = r21 * sy; a[o + 7] = 0; a[o + 8] = r02 * sz; a[o + 9] = r12 * sz; a[o + 10] = r22 * sz; a[o + 11] = 0; a[o + 12] = x; a[o + 13] = y; a[o + 14] = z; a[o + 15] = 1; const k = i * 3; this.c[k] = c[0]; this.c[k + 1] = c[1]; this.c[k + 2] = c[2]; }
+  /* box placed in a parent frame (position + yaw/pitch/roll) */
+  end() { this.mesh.count = this.n; this.mesh.instanceMatrix.needsUpdate = true; this.mesh.instanceColor.needsUpdate = true; }
+}
+const dynMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+const glowMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthWrite: false });
+const sprayMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
+const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false });
+
+/* frame helper for drawing rigid assemblies (ship parts, creatures) */
+const F = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0 };
+const _M = new THREE.Matrix4(), _E = new THREE.Euler(), _V = new THREE.Vector3(), _Q = new THREE.Quaternion();
+/* yaw about Y, rx about X, rz about Z (the hull runs along X, so the ship's pitch is rz and its roll is rx) */
+function setFrame(x, y, z, yaw, rx, rz) { F.x = x; F.y = y; F.z = z; F.yaw = yaw; F.pitch = rx; F.roll = rz; _E.set(rx, yaw, rz, 'YXZ'); _Q.setFromEuler(_E); }
+function toWorld(lx, ly, lz) { _V.set(lx, ly, lz).applyQuaternion(_Q); _V.x += F.x; _V.y += F.y; _V.z += F.z; return _V; }
+function part(pool, lx, ly, lz, sx, sy, sz, c) { const p = toWorld(lx, ly, lz); pool.rbox(p.x, p.y, p.z, sx, sy, sz, F.yaw, F.pitch, F.roll, c); }
+
+
+// ==== ROOM ==========================================================================
+const P = CFG; const WS = 0.5; const room = new VoxelSet(WS); const rv = (x, y, z, c, e) => room.set(Math.round(x / WS), Math.round(y / WS), Math.round(z / WS), c, e);
+const deskY = -9; let domeMesh, domeRim; const dome = { up: 0, want: 1 };
+function buildRoom() {
+  // desk
+  for (let x = -70; x <= 70; x += WS) for (let z = -46; z <= 46; z += WS) rv(x, deskY, z, hash3(Math.round(x / WS), 0, Math.round(z / WS)) < 0.5 ? C.desk : C.desk2);
+  for (let x = -70; x <= 70; x += WS) for (let y = deskY - 2; y < deskY; y += WS) { rv(x, y, 46, C.desk2); rv(x, y, -46, C.desk2); }
+  for (const [lx, lz] of [[-66, -42], [66, -42], [-66, 42], [66, 42]]) for (let y = deskY - 40; y < deskY; y += WS) for (let dx = 0; dx < 2.5; dx += WS) for (let dz = 0; dz < 2.5; dz += WS) rv(lx + dx, y, lz + dz, C.desk2);
+  // plinth: mahogany drum with brass bands and three arched openings onto the gear room
+  const pr = 11, pTop = P.plateY - 0.5, pBot = deskY + WS;
+  for (let x = -pr - 1; x <= pr + 1; x += WS) for (let z = -pr - 1; z <= pr + 1; z += WS) { const d = Math.hypot(x, z); if (d > pr + 0.6) continue; const ang = Math.atan2(z, x);
+    for (let y = pBot; y <= pTop; y += WS) { const shell = d > pr - 1.6; const band = y > pTop - 1 || y < pBot + 1; let arch = false; for (const a0 of [Math.PI / 2, Math.PI / 2 + TAU / 3, Math.PI / 2 - TAU / 3]) { const da = Math.abs(Math.atan2(Math.sin(ang - a0), Math.cos(ang - a0))); const yy = (y - pBot) / (pTop - pBot); if (da < 0.42 && yy > 0.12 && yy < 0.82 - (da / 0.42) ** 2 * 0.25) arch = true; }
+      if (shell && !arch) rv(x, y, z, band ? (hash3(Math.round(x / WS), Math.round(y / WS), 1) < 0.5 ? C.brass : C.brass2) : (hash3(Math.round(x / WS), Math.round(y / WS), Math.round(z / WS)) < 0.5 ? C.mahog : C.mahog2)); else if (!shell && y < pBot + WS) rv(x, y, z, C.iron); } }
+  // the plate: brass disc engraved with the orbit rings and zodiac ticks
+  for (let x = -P.plateR - 1; x <= P.plateR + 1; x += WS) for (let z = -P.plateR - 1; z <= P.plateR + 1; z += WS) { const d = Math.hypot(x, z); if (d > P.plateR) continue; let c = hash3(Math.round(x / WS), 5, Math.round(z / WS)) < 0.5 ? C.brass : C.brass2; for (const pl of P.planets) if (Math.abs(d - pl.R) < 0.3) c = C.mahog2; if (d > P.plateR - 0.8) c = C.brassHi; const ang = Math.atan2(z, x); if (d > P.plateR - 2.4 && Math.abs(((ang / (TAU / 24)) % 1 + 1) % 1 - 0.5) < 0.06) c = C.mahog2; rv(x, P.plateY, z, c); if (d > P.plateR - 0.8) rv(x, P.plateY + WS, z, C.brass2); }
+  // study: back wall with bookshelves, a window, a rug on the floor
+  const wallZ = -60; for (let x = -110; x <= 110; x += WS) for (let y = deskY - 40; y <= 60; y += WS) { const win = Math.abs(x - 40) < 14 && y > 6 && y < 44; if (!win) rv(x, y, wallZ, C.wall); }
+  for (const sx of [-92, -62]) for (let shelfY = deskY - 20; shelfY <= 50; shelfY += 10) { for (let x = sx; x <= sx + 26; x += WS) for (let z = wallZ + WS; z <= wallZ + 6; z += WS) rv(x, shelfY, z, C.shelf); for (let x = sx; x <= sx + 26; x += WS) for (let z = wallZ + WS; z <= wallZ + 6; z += WS) { rv(x, shelfY - WS, z, C.shelf); } 
+    let x = sx + 1; while (x < sx + 25) { const w = rint(1, 3) * WS, h = rnd(5, 8.5), c = pick(C.books); if (rng() < 0.12) { x += w; continue; } for (let xx = x; xx < x + w; xx += WS) for (let y = shelfY + WS; y < shelfY + h; y += WS) for (let z = wallZ + 1; z <= wallZ + 5; z += WS) rv(xx, y, z, c); x += w; } }
+  for (let x = -110; x <= 110; x += WS) for (let z = wallZ; z <= 80; z += WS) rv(x, deskY - 40, z, (Math.abs(x) < 60 && z > -40 && z < 60) ? ((Math.abs(x) > 56 || z < -36 || z > 56) ? C.rug2 : C.rug) : C.mahog2);
+  // window frame, moon and stars outside
+  for (let x = 26; x <= 54; x += WS) for (let y = 6; y <= 44; y += WS) { const frame = Math.abs(x - 26) < WS || Math.abs(x - 54) < WS || Math.abs(y - 6) < WS || Math.abs(y - 44) < WS || Math.abs(x - 40) < WS || Math.abs(y - 25) < WS; if (frame) rv(x, y, wallZ, C.mahog2); }
+  const sky = new THREE.Mesh(new THREE.PlaneGeometry(30, 40), new THREE.MeshBasicMaterial({ color: 0x0a1020 })); sky.position.set(40, 25, wallZ - 3); scene.add(sky);
+  const moon = new THREE.Mesh(new THREE.CircleGeometry(2.6, 24), new THREE.MeshBasicMaterial({ color: 0xe8ecf4 })); moon.position.set(47, 34, wallZ - 2.5); scene.add(moon);
+  const sp = []; for (let i = 0; i < 90; i++) sp.push(40 + rnd(-13, 13), 25 + rnd(-18, 18), wallZ - 2.2); const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3)); scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false })));
+  // gas lamp on the wall, an open book and a magnifying glass on the desk
+  for (let y = 24; y < 30; y += WS) rv(-44, y, wallZ + 1, C.brass); rv(-44, 30, wallZ + 2, C.brass); for (let dx = -1; dx <= 1; dx += WS) for (let dz = 0; dz <= 2; dz += WS) rv(-44 + dx, 31, wallZ + 2 + dz, C.candle, 1);
+  for (let x = 38; x <= 58; x += WS) for (let z = 22; z <= 36; z += WS) rv(x, deskY + WS, z, Math.abs(x - 48) < WS ? C.mahog2 : (hash3(Math.round(x / WS), 9, Math.round(z / WS)) < 0.07 ? C.ink : C.paper));
+  for (let a = 0; a < TAU; a += 0.12) rv(-48 + Math.cos(a) * 3.5, deskY + WS, 28 + Math.sin(a) * 3.5, C.brass); for (let k = 0; k < 6; k += WS) rv(-48 + 3.5 + k, deskY + WS, 28 + k * 0.6, C.mahog2);
+  const mesh = new THREE.Mesh(room.build(), voxMat); mesh.castShadow = mesh.receiveShadow = true; scene.add(mesh);
+  // bell jar: fresnel glass over the whole orrery
+  const pts = []; for (let i = 0; i <= 10; i++) pts.push(new THREE.Vector2(P.domeR, P.plateY - 0.4 + i / 10 * P.domeH)); for (let i = 1; i <= 14; i++) { const t = i / 14; pts.push(new THREE.Vector2(Math.cos(t * Math.PI / 2) * P.domeR, P.plateY - 0.4 + P.domeH + Math.sin(t * Math.PI / 2) * P.domeR * 0.75)); }
+  const glassMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, uniforms: { uLight: { value: new THREE.Vector3(-0.5, 0.5, 0.7).normalize() }, uBase: { value: 0.05 }, uTint: { value: new THREE.Color(0xb8d8e8) } },
+    vertexShader: 'varying vec3 vN; varying vec3 vV; void main(){ vec4 wp = modelMatrix * vec4(position, 1.0); vN = normalize(mat3(modelMatrix) * normal); vV = normalize(cameraPosition - wp.xyz); gl_Position = projectionMatrix * viewMatrix * wp; }',
+    fragmentShader: `varying vec3 vN; varying vec3 vV; uniform vec3 uLight; uniform float uBase; uniform vec3 uTint; void main(){ vec3 N = normalize(vN); if (dot(N, vV) < 0.0) N = -N; float f = pow(1.0 - max(dot(N, vV), 0.0), 3.5); float sp = pow(max(dot(reflect(-uLight, N), vV), 0.0), 80.0); vec3 col = mix(uTint, vec3(1.0), f * 0.7 + sp); float a = uBase + f * 0.55 + sp * 0.7; gl_FragColor = vec4(col, clamp(a, 0.0, 0.9)); }` });
+  domeMesh = new THREE.Mesh(new THREE.LatheGeometry(pts, 96), glassMat); domeMesh.renderOrder = 20; scene.add(domeMesh);
+  domeRim = new THREE.Mesh(new THREE.TorusGeometry(P.domeR + 0.3, 0.55, 8, 96), brassMat); domeRim.rotation.x = Math.PI / 2; domeRim.position.y = P.plateY - 0.2; domeRim.castShadow = true; scene.add(domeRim);
+  // faint constellations drawn on the inside of the dome
+  const cp = []; for (let i = 0; i < 260; i++) { const th = rnd(TAU), ph = rnd(0.15, 1.45); const rr = P.domeR - 0.6; cp.push(Math.cos(th) * Math.sin(ph) * rr, P.plateY - 0.4 + P.domeH * 0.4 + Math.cos(ph) * rr * 0.75 + 6, Math.sin(th) * Math.sin(ph) * rr); } const cg = new THREE.BufferGeometry(); cg.setAttribute('position', new THREE.Float32BufferAttribute(cp, 3)); const stars = new THREE.Points(cg, new THREE.PointsMaterial({ color: 0xcfd8ff, size: 2, sizeAttenuation: false, transparent: true, opacity: 0.6 })); scene.add(stars); room.stars = stars;
+}
+
+// ==== PLANETS =======================================================================
+const bodies = []; let sunMesh, sunGroup; const V = CFG.vox;
+/* fill a voxel sphere, colouring each surface cell from (latitude, longitude, radius) */
+function voxSphere(vs, r, colorFn, e = 0) { for (let x = -r; x <= r; x++) for (let y = -r; y <= r; y++) for (let z = -r; z <= r; z++) { const d = Math.sqrt(x * x + y * y + z * z); if (d > r + 0.45) continue; const lat = Math.asin(clamp(y / (d || 1), -1, 1)), lon = Math.atan2(z, x); const c = colorFn(lat, lon, x, y, z, d / r); if (c) vs.set(x, y, z, c, e); } }
+const surf = {
+  Mercury: (lat, lon, x, y, z) => { const n = noise.fbm(x * 0.35, y * 0.35, z * 0.35, 3); const crater = hash3(x, y, z) < 0.06 ? 0.6 : 1; const g = (0.45 + n * 0.18) * crater; return [g, g * 0.97, g * 0.92]; },
+  Venus: (lat, lon, x, y, z) => { const b = Math.sin(lat * 6 + noise.fbm(x * 0.3, y * 0.3, z * 0.3, 2) * 3) * 0.5 + 0.5; return [lerp(0.85, 0.95, b), lerp(0.7, 0.85, b), lerp(0.4, 0.55, b)]; },
+  Earth: (lat, lon, x, y, z) => { const n = noise.fbm(x * 0.28 + 3, y * 0.28, z * 0.28, 4) + 0.03; if (Math.abs(lat) > 1.25 || (Math.abs(lat) > 1.05 && n > 0.05)) return [0.95, 0.96, 0.98]; if (n > 0.02) { const h = noise.fbm(x * 0.5, y * 0.5, z * 0.5, 2); return n > 0.22 ? [0.55, 0.45, 0.3] : h > 0.1 ? [0.55, 0.55, 0.3] : [0.2, 0.5 + h * 0.3, 0.2]; } return n > -0.06 ? [0.12, 0.42, 0.7] : [0.06, 0.25, 0.55]; },
+  Mars: (lat, lon, x, y, z) => { if (Math.abs(lat) > 1.2) return [0.95, 0.92, 0.9]; const n = noise.fbm(x * 0.3, y * 0.3, z * 0.3, 3); const dark = n > 0.15; const valley = Math.abs(lat + 0.15) < 0.12 && lon > -1.2 && lon < 0.4; return dark ? [0.5, 0.25, 0.15] : valley ? [0.42, 0.2, 0.12] : [0.78 + n * 0.2, 0.42 + n * 0.1, 0.25]; },
+  Jupiter: (lat, lon, x, y, z) => { const band = Math.sin(lat * 11 + noise.fbm(x * 0.15, y * 0.15, z * 0.15, 2) * 1.5); const spotD = Math.hypot((lat + 0.35) * 2.2, Math.atan2(Math.sin(lon - 0.6), Math.cos(lon - 0.6)) * 1.1); if (spotD < 0.45) return spotD < 0.25 ? [0.85, 0.4, 0.25] : [0.75, 0.5, 0.35]; if (band > 0.5) return [0.92, 0.85, 0.72]; if (band > 0) return [0.85, 0.7, 0.5]; if (band > -0.5) return [0.7, 0.5, 0.35]; return [0.55, 0.38, 0.28]; },
+  Saturn: (lat, lon, x, y, z) => { const band = Math.sin(lat * 9 + noise.fbm(x * 0.2, y * 0.2, z * 0.2, 2)); return band > 0.3 ? [0.92, 0.85, 0.6] : band > -0.3 ? [0.85, 0.75, 0.5] : [0.75, 0.65, 0.42]; },
+  Uranus: (lat, lon, x, y, z) => { const n = noise.fbm(x * 0.2, y * 0.2, z * 0.2, 2) * 0.06; return [0.55 + n, 0.85 + n, 0.9 + n]; },
+  Neptune: (lat, lon, x, y, z) => { const n = noise.fbm(x * 0.25, y * 0.25, z * 0.25, 2); const spot = Math.hypot((lat + 0.3) * 2, Math.atan2(Math.sin(lon - 2), Math.cos(lon - 2))) < 0.3; if (spot) return [0.1, 0.15, 0.4]; return n > 0.22 ? [0.8, 0.85, 0.95] : [0.2 + n * 0.1, 0.35 + n * 0.1, 0.85]; }
+};
+function buildPlanets() {
+  // the sun: a glowing granulated ball with a few dark spots and a lamp inside
+  sunGroup = new THREE.Group(); scene.add(sunGroup); const sv = new VoxelSet(V * 1.15);
+  voxSphere(sv, 8, (lat, lon, x, y, z) => { const n = noise.fbm(x * 0.4, y * 0.4, z * 0.4, 2); const spot = hash3(x, y, z) < 0.015; return spot ? [0.7, 0.3, 0.08] : [1, 0.82 + n * 0.15, 0.35 + n * 0.25]; }, 2);
+  sunMesh = new THREE.Mesh(sv.build(true), new THREE.MeshBasicMaterial({ vertexColors: true })); sunMesh.position.y = CFG.planetY; sunGroup.add(sunMesh); sunGroup.voxels = sv.count;
+  // a soft halo: radial gradient painted onto a canvas, drawn as an additive billboard
+  const cv = document.createElement('canvas'); cv.width = cv.height = 256; const ctx = cv.getContext('2d'); const gr = ctx.createRadialGradient(128, 128, 10, 128, 128, 128); gr.addColorStop(0, 'rgba(255,220,150,0.95)'); gr.addColorStop(0.25, 'rgba(255,170,70,0.45)'); gr.addColorStop(0.6, 'rgba(255,120,40,0.12)'); gr.addColorStop(1, 'rgba(255,100,30,0)'); ctx.fillStyle = gr; ctx.fillRect(0, 0, 256, 256);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); halo.scale.set(11, 11, 1); halo.position.y = CFG.planetY; halo.renderOrder = 15; sunGroup.add(halo); sunGroup.halo = halo;
+  CFG.planets.forEach((pl, i) => {
+    const g = new THREE.Group(); scene.add(g); const spin = new THREE.Group(); spin.rotation.z = pl.tilt; g.add(spin); const vs = new VoxelSet(V); voxSphere(vs, pl.r, surf[pl.name]);
+    const m = new THREE.Mesh(vs.build(), voxMat); m.castShadow = m.receiveShadow = true; spin.add(m);
+    const b = { name: pl.name, cfg: pl, group: g, spin, ang: rnd(TAU), period: Math.pow(pl.R / 9.0, 1.5), voxels: vs.count, moons: [], layers: [], radius: pl.r * V, x: 0, y: CFG.planetY, z: 0 };
+    if (pl.ring) { const rv = new VoxelSet(V); for (let x = -pl.ring[1]; x <= pl.ring[1]; x++) for (let z = -pl.ring[1]; z <= pl.ring[1]; z++) { const d = Math.hypot(x, z); if (d < pl.ring[0] || d > pl.ring[1]) continue; const gap = pl.name === 'Saturn' && Math.abs(d - (pl.ring[0] + pl.ring[1]) / 2 - 0.5) < 0.6; if (gap || hash3(x, 0, z) < 0.03) continue; const k = (d - pl.ring[0]) / (pl.ring[1] - pl.ring[0]); rv.set(x, 0, z, pl.name === 'Saturn' ? [0.85 - k * 0.2, 0.78 - k * 0.2, 0.6 - k * 0.1] : [0.6, 0.7, 0.75]); }
+      const rm = new THREE.Mesh(rv.build(), voxMat); rm.castShadow = rm.receiveShadow = true; spin.add(rm); b.voxels += rv.count; }
+    for (const [mn, dist, mr, per, col] of pl.moons) { const mv = new VoxelSet(V); voxSphere(mv, Math.max(1, Math.round(mr)), (lat, lon, x, y, z) => { const k = 0.85 + 0.3 * hash3(x, y, z); return [col[0] * k, col[1] * k, col[2] * k]; }); const mm = new THREE.Mesh(mv.build(), voxMat); mm.castShadow = mm.receiveShadow = true; scene.add(mm); b.moons.push({ name: mn, mesh: mm, dist: dist * V, per, ang: rnd(TAU), voxels: mv.count }); b.voxels += mv.count; }
+    bodies.push(b);
+  });
+  // Earth's clouds and Venus' cloud shell as separate layers that turn at their own pace; Mars gets a dust shell that fades in and out
+  const earth = bodies.find(b => b.name === 'Earth'), venus = bodies.find(b => b.name === 'Venus'), mars = bodies.find(b => b.name === 'Mars');
+  const cloudLayer = (b, rr, fn, opacity) => { const cv = new VoxelSet(V); voxSphere(cv, rr, fn); const mat = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity, depthWrite: false }); const cm = new THREE.Mesh(cv.build(), mat); cm.castShadow = false; b.spin.add(cm); b.layers.push({ mesh: cm, spin: 0, mat }); return cm; };
+  cloudLayer(earth, 7, (lat, lon, x, y, z, k) => (k > 0.9 && noise.fbm(x * 0.3 + 9, y * 0.3, z * 0.3, 3) > 0.12) ? [0.98, 0.98, 1] : null, 0.95); earth.layers[0].spin = 6;
+  cloudLayer(venus, 6, (lat, lon, x, y, z, k) => k > 0.9 ? (noise.fbm(x * 0.35, y * 0.8, z * 0.35, 2) > -0.05 ? [0.96, 0.9, 0.7] : null) : null, 0.9); venus.layers[0].spin = -12;
+  cloudLayer(mars, 5, (lat, lon, x, y, z, k) => k > 0.9 && hash3(x, y, z) < 0.7 ? [0.85, 0.55, 0.3] : null, 0); mars.layers[0].spin = 5; mars.dust = 0;
+}
+/* comet on an eccentric ellipse with the sun at one focus; speed follows Kepler's second law */
+const comet = { a: 22, e: 0.72, th: 2.6, active: true, tail: [] };
+const belt = []; function spawnBelt() { for (let i = 0; i < (IS_MOBILE ? 140 : 260); i++) belt.push({ r: rnd(12.8, 14.9), ang: rnd(TAU), y: rnd(-0.5, 0.5), s: rnd(0.1, 0.32), spin: rnd(TAU), c: pick([[0.62, 0.56, 0.5], [0.7, 0.6, 0.5], [0.5, 0.5, 0.52]]) }); }
+function cometPos(th) { const r = comet.a * (1 - comet.e * comet.e) / (1 + comet.e * Math.cos(th)); return [Math.cos(th + 0.9) * r, CFG.planetY + Math.sin(th) * 1.8, Math.sin(th + 0.9) * r]; }
+
+// ==== GEARS =========================================================================
+/* a laid-out gear train inside the plinth, seen through the arches: drive → reduction → escape wheel, plus a balance wheel and the winding barrel */
+const gears = [
+  { x: 0, y: -4.5, r: 3.2, teeth: 28, rate: 1, ang: 0, thick: 0.6 }, { x: 4.6, y: -5.3, r: 1.5, teeth: 13, rate: -28 / 13, ang: 0, thick: 0.5 },
+  { x: 7.2, y: -3.1, r: 2.0, teeth: 17, rate: 28 / 13 * 13 / 17, ang: 0.2, thick: 0.5 }, { x: -4.4, y: -6.0, r: 1.3, teeth: 11, rate: -28 / 11, ang: 0.1, thick: 0.45 },
+  { x: -6.8, y: -3.4, r: 1.8, teeth: 15, rate: 28 / 11 * 11 / 15, ang: 0.3, thick: 0.5 }, { x: -3.6, y: -1.6, r: 1.1, teeth: 9, rate: -28 / 9, ang: 0, thick: 0.4, escape: true }
+];
+const mech = { balance: 0, balanceV: 0, tick: 0, key: 0, winding: 0, spring: 1 };
+function drawGears(P2, dt, speed) {
+  const gz = -0.5;
+  for (const g of gears) { const rot = g.escape ? (Math.floor(mech.tick * 2) / g.teeth * TAU + (mech.tick * 2 % 1 > 0.85 ? 0 : 0)) : g.ang; if (!g.escape) g.ang += g.rate * speed * dt * 0.35;
+    const segs = g.teeth; for (let i = 0; i < segs; i++) { const a = rot + i / segs * TAU; const cx = g.x + Math.cos(a) * g.r, cy = g.y + Math.sin(a) * g.r; P2.rbox(cx, cy, gz, 0.42, TAU * g.r / segs * 0.95, g.thick, 0, 0, a, C.brass); P2.rbox(g.x + Math.cos(a) * (g.r + 0.32), g.y + Math.sin(a) * (g.r + 0.32), gz, 0.34, TAU * g.r / segs * 0.45, g.thick, 0, 0, a, C.brassHi); }
+    for (let k = 0; k < 4; k++) { const a = rot + k * Math.PI / 2; P2.rbox(g.x + Math.cos(a) * g.r * 0.5, g.y + Math.sin(a) * g.r * 0.5, gz, g.r, 0.22, g.thick * 0.6, 0, 0, a, C.brass2); }
+    P2.box(g.x, g.y, gz, 0.6, 0.6, g.thick + 0.3, C.steel); }
+  // escapement pallet rocking on the escape wheel, balance wheel swinging above
+  const ew = gears[5]; const rock = Math.sin(mech.tick * TAU) * 0.25; P2.rbox(ew.x, ew.y + ew.r + 0.9, gz, 1.9, 0.25, 0.4, 0, 0, rock, C.steel); P2.rbox(ew.x - 0.8, ew.y + ew.r + 0.55, gz, 0.22, 0.6, 0.4, 0, 0, rock, C.steel); P2.rbox(ew.x + 0.8, ew.y + ew.r + 0.55, gz, 0.22, 0.6, 0.4, 0, 0, rock, C.steel);
+  const bx = -3.6, by = -1.6 + ew.r + 2.9; const ba = Math.sin(mech.tick * TAU + 0.5) * 1.3; for (let i = 0; i < 20; i++) { const a = ba + i / 20 * TAU; P2.rbox(bx + Math.cos(a) * 1.4, by + Math.sin(a) * 1.4, gz + 0.5, 0.3, 0.46, 0.14, 0, 0, a, C.brassHi); } P2.rbox(bx, by, gz + 0.5, 2.6, 0.12, 0.1, 0, 0, ba, C.steel); P2.rbox(bx, by, gz + 0.5, 0.12, 2.6, 0.1, 0, 0, ba, C.steel); P2.box(bx, by, gz + 0.5, 0.3, 0.3, 0.5, C.steel);
+  // mainspring barrel and the winding key sticking out of the right arch
+  const sp = mech.spring; for (let i = 0; i < 14; i++) { const a = mech.key + i / 14 * TAU; P2.rbox(5.2 + Math.cos(a) * 1.9, -1.4 + Math.sin(a) * 1.9, gz, 0.3, 0.85, 0.7, 0, 0, a, i % 2 ? C.iron : C.brass2); } P2.box(5.2, -1.4, gz, 0.5, 0.5, 1.4, C.steel);
+  const kz = 10.4; P2.rbox(6.5, -4.5, kz, 0.35, 0.35, 2.2, 0, 0, 0, C.steel); P2.rbox(6.5, -4.5, kz + 1.2, 2.2, 0.4, 0.4, 0, 0, mech.key * 0.5, C.brassHi); P2.rbox(6.5, -4.5, kz + 1.2, 0.4, 2.2, 0.4, 0, 0, mech.key * 0.5, C.brassHi);
+  // the central drive shaft up through the plate
+  P2.box(0, (CFG.plateY - 4.5) / 2 - 0.9, gz, 0.5, 3.6, 0.5, C.steel);
+  void sp;
+}
+function windSpring() { ensureAudio(); if (mech.winding > 0) return; mech.winding = 3; status('Winding the mainspring…'); ratchet(); }
+
+// ==== SIMULATION ====================================================================
+const sim = { speed: 1, years: 0, lamp: 0.8, roomLight: 0.4, align: null, eclipse: null, t: 0 };
+const pools = { dyn: null, glow: null, tail: null };
+function initPools() { pools.dyn = new BoxPool(5000, new THREE.MeshLambertMaterial({ color: 0xffffff }), true); pools.glow = new BoxPool(1500, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false })); pools.tail = new BoxPool(1200, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending })); }
+function updateOrrery(dt) {
+  const dtY = dt * sim.speed / CFG.yearSec;  // fraction of an Earth year this frame
+  sim.t += dt; sim.years += dtY; shaderU.uTime.value = sim.t;
+  mech.tick += dt * 1.0; if (mech.winding > 0) { mech.winding -= dt; mech.key += dt * 4; mech.spring = Math.min(1, mech.spring + dt * 0.4); } mech.key += dt * 0.05 * sim.speed;
+  for (const b of bodies) {
+    if (sim.align) { const k = Math.min(1, sim.align.t / 2.5); const d = Math.atan2(Math.sin(sim.align.ang - b.ang), Math.cos(sim.align.ang - b.ang)); b.ang += d * Math.min(1, dt * 2.5) * (k < 1 ? 1 : 0); }
+    else b.ang += dtY * TAU / b.period;
+    b.x = Math.cos(b.ang) * b.cfg.R; b.z = Math.sin(b.ang) * b.cfg.R; b.group.position.set(b.x, CFG.planetY, b.z); b.spin.rotation.y += dtY * b.cfg.spin;
+    for (const l of b.layers) l.mesh.rotation.y += dtY * l.spin;
+    for (const m of b.moons) { if (sim.eclipse && b.name === 'Earth' && m.name === 'Moon') { const want = b.ang + Math.PI; const d = Math.atan2(Math.sin(want - m.ang), Math.cos(want - m.ang)); m.ang += d * Math.min(1, dt * 2.5); } else m.ang += dtY * TAU / m.per; m.mesh.position.set(b.x + Math.cos(m.ang) * m.dist, CFG.planetY + Math.sin(m.ang * 0.5) * 0.08, b.z + Math.sin(m.ang) * m.dist); m.mesh.rotation.y += dt * 0.3; }
+    if (b.name === 'Mars') { const l = b.layers[0]; b.dust = (b.dust || 0) + dt * 0.02 * sim.speed; const k = Math.max(0, Math.sin(b.dust)) ** 2; l.mat.opacity = k * 0.8; l.mesh.visible = k > 0.02; }
+  }
+  if (sim.align) { sim.align.t += dt; if (sim.align.t > 4) sim.align = null; }
+  if (sim.eclipse) { sim.eclipse.t += dt; if (sim.eclipse.t > 2.6 && !sim.eclipse.rang) { sim.eclipse.rang = true; gong(); status('Totality.'); } if (sim.eclipse.t > 9) sim.eclipse = null; }
+  // comet: Kepler pacing
+  const cr = comet.a * (1 - comet.e * comet.e) / (1 + comet.e * Math.cos(comet.th)); comet.th += dtY * 1.6 * Math.pow(comet.a / cr, 2) * (comet.rush ? 6 : 1); if (comet.rush && cr > comet.a * (1 - comet.e) * 1.05 && Math.cos(comet.th) < 0) comet.rush = false;
+  const cp = cometPos(comet.th); comet.x = cp[0]; comet.y = cp[1]; comet.z = cp[2]; const near = clamp(1 - (cr - comet.a * (1 - comet.e)) / comet.a, 0, 1);
+  if (near > 0.15 && rng() < dt * 40 * near) { const d = Math.hypot(comet.x, comet.z) || 1; comet.tail.push({ x: comet.x, y: comet.y, z: comet.z, vx: comet.x / d * rnd(1, 3) * near + rnd(-0.3, 0.3), vy: rnd(-0.3, 0.3), vz: comet.z / d * rnd(1, 3) * near + rnd(-0.3, 0.3), age: 0, life: rnd(1.5, 3.5) }); }
+  for (let i = comet.tail.length - 1; i >= 0; i--) { const p = comet.tail[i]; p.age += dt; if (p.age > p.life || comet.tail.length > 1100) { comet.tail.splice(i, 1); continue; } p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; }
+  for (const a of belt) { a.ang += dtY * TAU / Math.pow(a.r / 9, 1.5); a.spin += dt; }
+  // lights
+  sunLight.intensity = sim.lamp * 3.4 + 0.1; sunMesh.material.color.setScalar(0.45 + sim.lamp * 0.65); sunGroup.halo.material.opacity = 0.3 + sim.lamp * 0.7; roomLight.intensity = sim.roomLight * 2.4 + Math.sin(sim.t * 9) * 0.04; hemi.intensity = 0.28 + sim.roomLight * 0.45; ambient.intensity = 0.4 + sim.roomLight * 0.4; moonLight.intensity = 0.15 + (1 - sim.roomLight) * 0.25;
+  room.stars.material.opacity = clamp(0.9 - sim.roomLight * 1.4, 0, 0.9) * (1 - sim.lamp * 0.4);
+  dome.up += ((dome.want ? 0 : 1) - dome.up) * Math.min(1, dt * 1.5); domeMesh.position.y = dome.up * 42; domeMesh.visible = dome.up < 0.98; domeRim.position.y = CFG.plateY - 0.2 + dome.up * 42; domeRim.visible = domeMesh.visible;
+}
+function drawDynamic(dt) {
+  const D = pools.dyn, G = pools.glow; D.begin(); G.begin(); pools.tail.begin();
+  // brass arms: a sleeve on the column at a different height per planet, an arm out to the orbit, a post up to the planet
+  bodies.forEach((b, i) => { const hy = CFG.plateY + 0.45 + i * 0.17; const mx = b.x / 2, mz = b.z / 2; D.rbox(mx, hy, mz, b.cfg.R, 0.14, 0.26, -b.ang, 0, 0, C.brass); D.box(0, hy, 0, 1.1 - i * 0.08, 0.16, 1.1 - i * 0.08, C.brassHi); D.box(b.x, (hy + CFG.planetY) / 2, b.z, 0.16, CFG.planetY - hy, 0.16, C.brass);
+    for (const m of b.moons) { const mp = m.mesh.position; const dx = mp.x - b.x, dz = mp.z - b.z; D.rbox(b.x + dx / 2, CFG.planetY - b.radius - 0.25, b.z + dz / 2, m.dist, 0.06, 0.1, -m.ang, 0, 0, C.brass2); D.box(mp.x, CFG.planetY - b.radius * 0.5 - 0.15, mp.z, 0.07, b.radius + 0.4, 0.07, C.brass2); } });
+  // asteroid belt
+  for (const a of belt) D.rbox(Math.cos(a.ang) * a.r, CFG.planetY + a.y, Math.sin(a.ang) * a.r, a.s, a.s * 0.8, a.s * 1.2, a.spin, a.spin * 0.7, 0, a.c);
+  // comet and tail
+  G.box(comet.x, comet.y, comet.z, 0.55, 0.55, 0.55, [0.85, 0.95, 1]); for (const p of comet.tail) { const t = p.age / p.life; pools.tail.box(p.x, p.y, p.z, 0.3 * (1 - t) + 0.05, 0.3 * (1 - t) + 0.05, 0.3 * (1 - t) + 0.05, [0.5 * (1 - t), 0.8 * (1 - t), 1 * (1 - t)]); }
+  // solar flares licking off the sun
+  for (let i = 0; i < 14; i++) { const a = sim.t * 0.7 + i * 2.1, ph = Math.sin(sim.t * 2.3 + i * 1.7); const r = 8 * V * 1.15 + 0.35 + Math.max(0, ph) * 0.9; const lat = Math.sin(i * 1.3) * 1.2; G.box(Math.cos(a) * Math.cos(lat) * r, CFG.planetY + Math.sin(lat) * r, Math.sin(a) * Math.cos(lat) * r, 0.35 + ph * 0.15, 0.35, 0.35 + ph * 0.15, [1, 0.6 + ph * 0.2, 0.15]); }
+  // Earth: lightning on the night side, aurora at the poles
+  const earth = bodies.find(b => b.name === 'Earth'); if (earth) { if (rng() < dt * 1.4) { const a = Math.atan2(earth.z, earth.x) + rnd(-1.2, 1.2), lat = rnd(-0.9, 0.9); const rr = earth.radius + 0.15; earth.flash = { x: earth.x + Math.cos(a) * Math.cos(lat) * rr, y: CFG.planetY + Math.sin(lat) * rr, z: earth.z + Math.sin(a) * Math.cos(lat) * rr, t: 0.12 }; } if (earth.flash && earth.flash.t > 0) { earth.flash.t -= dt; G.box(earth.flash.x, earth.flash.y, earth.flash.z, 0.14, 0.14, 0.14, [0.9, 0.95, 1]); }
+    for (const s of [1, -1]) for (let k = 0; k < 8; k++) { const a = sim.t * 0.8 + k * TAU / 8; const rr = earth.radius * 0.35; G.box(earth.x + Math.cos(a) * rr, CFG.planetY + s * (earth.radius + 0.08 + Math.sin(sim.t * 3 + k) * 0.05), earth.z + Math.sin(a) * rr, 0.09, 0.14, 0.09, [0.3, 1, 0.6]); } }
+  drawGears(D, dt, sim.speed);
+  // room lamp flame
+  G.box(-44, 31.4, -60 + 3, 0.5, 0.8, 0.5, C.flame);
+  D.end(); G.end(); pools.tail.end();
+}
+function triggerEclipse() { ensureAudio(); sim.eclipse = { t: 0 }; status('Aligning the Moon…'); }
+function triggerAlign() { ensureAudio(); sim.align = { t: 0, ang: rnd(TAU) }; status('Grand conjunction!'); chime(0.6); }
+function sendComet() { ensureAudio(); comet.rush = true; status('The comet swings in.'); }
+
+// ==== INPUT =========================================================================
+const cam = { target: new THREE.Vector3(0, 3, 0), dist: 78, az: 0.7, el: 0.42, follow: null, cine: -1, cineT: 0, hideUI: false, labels: true };
+const cines = []; function buildCines() { const Vx = (x, y, z) => new THREE.Vector3(x, y, z), loop = pts => new THREE.CatmullRomCurve3(pts, true, 'centripetal');
+  cines.push({ name: 'The Whole Machine', dur: 50, pos: loop([Vx(70, 34, 20), Vx(30, 40, 66), Vx(-50, 30, 50), Vx(-72, 26, -10), Vx(-30, 44, -60), Vx(40, 36, -60)]), look: () => Vx(0, 4, 0) });
+  cines.push({ name: 'Among the Planets', dur: 45, pos: loop([Vx(34, 7, 0), Vx(20, 6, 26), Vx(-8, 5, 31), Vx(-30, 8, 10), Vx(-24, 6, -22), Vx(8, 7, -32), Vx(30, 6, -14)]), look: null });
+  cines.push({ name: 'The Gear Room', dur: 30, pos: loop([Vx(3, -4, 24), Vx(9, -2, 18), Vx(-4, -1, 17), Vx(-9, -5, 20)]), look: () => Vx(0, -3.5, -0.5) });
+  cines.push({ name: 'Riding the Comet', dur: 40, pos: null, look: null }); }
+const _cp = new THREE.Vector3(), _look = new THREE.Vector3();
+function updateCamera(dt) {
+  if (cam.follow) { const f = cam.follow; cam.target.lerp(new THREE.Vector3(f.x, f.y !== undefined ? f.y : CFG.planetY, f.z), Math.min(1, dt * 5)); }
+  if (cam.cine >= 0) { const c = cines[cam.cine]; cam.cineT += dt / c.dur; const u = cam.cineT % 1;
+    if (c.pos) { c.pos.getPointAt(u, _cp); if (c.look) _look.copy(c.look()); else c.pos.getPointAt((u + 0.04) % 1, _look).setY(CFG.planetY); } else { const d = Math.hypot(comet.x, comet.z) || 1; _cp.set(comet.x + comet.x / d * 5 + 2, comet.y + 3, comet.z + comet.z / d * 5 - 2); _look.set(0, CFG.planetY, 0); }
+    camera.position.lerp(_cp, Math.min(1, dt * 2.5)); cam.target.lerp(_look, Math.min(1, dt * 2.5)); camera.lookAt(cam.target); const dd = camera.position.clone().sub(cam.target); cam.dist = dd.length(); cam.el = Math.asin(clamp(dd.y / cam.dist, -1, 1)); cam.az = Math.atan2(dd.x, dd.z); return; }
+  const ce = Math.cos(cam.el); camera.position.set(cam.target.x + cam.dist * ce * Math.sin(cam.az), cam.target.y + cam.dist * Math.sin(cam.el), cam.target.z + cam.dist * ce * Math.cos(cam.az)); camera.lookAt(cam.target);
+}
+const mouse = { down: false, btn: 0, x: 0, y: 0, sx: 0, sy: 0, moved: false, hoverT: 0 };
+const _pv = new THREE.Vector3();
+function pickBody(mx, my) { let best = null, bd = 28 * 28; const test = (e, name, y) => { _pv.set(e.x, y, e.z).project(camera); if (_pv.z > 1) return; const sx = (_pv.x + 1) / 2 * innerWidth, sy = (-_pv.y + 1) / 2 * innerHeight; const d = (sx - mx) ** 2 + (sy - my) ** 2; if (d < bd) { bd = d; best = { e, name }; } };
+  for (const b of bodies) test(b, b.name, CFG.planetY); test({ x: 0, z: 0 }, 'Sun', CFG.planetY); test(comet, 'Comet', comet.y); return best; }
+function follow(p) { if (!p) return; cam.follow = p.e; cam.cine = -1; cam.dist = p.name === 'Sun' ? 14 : p.name === 'Comet' ? 10 : Math.max(6, p.e.radius * 7); $('hFollow').textContent = p.name; status(`Following ${p.name}`); }
+function unfollow() { cam.follow = null; $('hFollow').textContent = '—'; }
+function updateHover() { const tip = $('tip'); if (!cam.labels || cam.cine >= 0) { tip.style.display = 'none'; return; } const p = pickBody(mouse.x, mouse.y); if (!p) { tip.style.display = 'none'; return; } tip.style.display = 'block'; tip.style.left = (mouse.x + 14) + 'px'; tip.style.top = (mouse.y + 14) + 'px'; tip.innerHTML = `<b>${p.name.toUpperCase()}</b><br>${CFG.facts[p.name] || ''}`; }
+canvas.addEventListener('mousedown', e => { mouse.down = true; mouse.btn = e.button; mouse.sx = e.clientX; mouse.sy = e.clientY; mouse.moved = false; if (e.button !== 0) e.preventDefault(); });
+window.addEventListener('mousemove', e => { const dx = e.clientX - mouse.x, dy = e.clientY - mouse.y; mouse.x = e.clientX; mouse.y = e.clientY; mouse.hoverT = 0.03; if (!mouse.down) return; if (Math.abs(e.clientX - mouse.sx) + Math.abs(e.clientY - mouse.sy) > 4) mouse.moved = true; if (mouse.moved) cam.cine = -1; if (mouse.btn === 0 && !e.shiftKey) { cam.az -= dx * 0.005; cam.el = clamp(cam.el + dy * 0.005, -0.35, 1.45); } else { const s = cam.dist * 0.0012, fx = Math.sin(cam.az), fz = Math.cos(cam.az); cam.target.x += (-dx * fz + dy * fx) * s * -1; cam.target.z += (dx * fx + dy * fz) * s; cam.target.y -= dy * s * 0.5; unfollow(); } });
+window.addEventListener('mouseup', e => { ensureAudio(); if (!mouse.down) return; mouse.down = false; if (mouse.moved || e.button !== 0) return; const p = pickBody(e.clientX, e.clientY); if (p) follow(p); else if (cam.follow) { unfollow(); status('Free camera'); } });
+window.addEventListener('pointerup', () => ensureAudio(), { passive: true });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('wheel', e => { e.preventDefault(); cam.cine = -1; cam.dist = clamp(cam.dist * Math.exp(e.deltaY * 0.0012), 3, 220); }, { passive: false });
+const touch = { pts: new Map(), lastDist: 0, midX: 0, midY: 0, startX: 0, startY: 0, t0: 0, moved: false };
+canvas.addEventListener('touchstart', e => { e.preventDefault(); for (const t of e.changedTouches) touch.pts.set(t.identifier, { x: t.clientX, y: t.clientY }); if (e.touches.length === 1) { touch.startX = e.touches[0].clientX; touch.startY = e.touches[0].clientY; touch.t0 = performance.now(); touch.moved = false; } else if (e.touches.length >= 2) { const a = e.touches[0], b = e.touches[1]; touch.lastDist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); touch.midX = (a.clientX + b.clientX) / 2; touch.midY = (a.clientY + b.clientY) / 2; touch.moved = true; } }, { passive: false });
+canvas.addEventListener('touchmove', e => { e.preventDefault(); if (e.touches.length === 1) { const t = e.touches[0], prev = touch.pts.get(t.identifier) || { x: t.clientX, y: t.clientY }; const dx = t.clientX - prev.x, dy = t.clientY - prev.y; if (Math.abs(t.clientX - touch.startX) + Math.abs(t.clientY - touch.startY) > 8) touch.moved = true; if (touch.moved) { cam.cine = -1; cam.az -= dx * 0.006; cam.el = clamp(cam.el + dy * 0.006, -0.35, 1.45); } } else if (e.touches.length >= 2) { const a = e.touches[0], b = e.touches[1]; const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), mx = (a.clientX + b.clientX) / 2, my = (a.clientY + b.clientY) / 2; if (touch.lastDist > 0) cam.dist = clamp(cam.dist * touch.lastDist / d, 3, 220); const s = cam.dist * 0.0018, fx = Math.sin(cam.az), fz = Math.cos(cam.az), dx = mx - touch.midX, dy = my - touch.midY; cam.target.x += (-dx * fz + dy * fx) * s * -1; cam.target.z += (dx * fx + dy * fz) * s; if (Math.abs(dx) + Math.abs(dy) > 1) unfollow(); cam.cine = -1; touch.lastDist = d; touch.midX = mx; touch.midY = my; } for (const t of e.changedTouches) touch.pts.set(t.identifier, { x: t.clientX, y: t.clientY }); }, { passive: false });
+function touchEnd(e) { e.preventDefault(); ensureAudio(); for (const t of e.changedTouches) touch.pts.delete(t.identifier); if (e.touches.length === 0 && !touch.moved && performance.now() - touch.t0 < 400 && e.changedTouches.length === 1) { const t = e.changedTouches[0]; const p = pickBody(t.clientX, t.clientY); if (p) follow(p); else if (cam.follow) unfollow(); } if (e.touches.length < 2) touch.lastDist = 0; if (e.touches.length === 1) touch.moved = true; }
+canvas.addEventListener('touchend', touchEnd, { passive: false }); canvas.addEventListener('touchcancel', touchEnd, { passive: false });
+function cycleCinematic() { cam.cine = cam.cine >= cines.length - 1 ? -1 : cam.cine + 1; unfollow(); if (cam.cine >= 0) { cam.cineT = 0; status(`Cinematic: ${cines[cam.cine].name}`); } else status('Free camera'); }
+function toggleUI() { cam.hideUI = !cam.hideUI; for (const id of ['hud', 'panel', 'keys', 'mobilebar', 'panelToggle']) $(id).style.display = cam.hideUI ? 'none' : ''; }
+window.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return; ensureAudio(); if (e.code === 'Space') { e.preventDefault(); cycleCinematic(); } else if (e.code === 'KeyE') triggerEclipse(); else if (e.code === 'KeyA') triggerAlign(); else if (e.code === 'KeyK') sendComet(); else if (e.code === 'KeyW') windSpring(); else if (e.code === 'Escape') { unfollow(); cam.cine = -1; } else if (e.code === 'KeyH') toggleUI(); });
+window.addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+$('sSpeed').addEventListener('input', e => { const v = parseFloat(e.target.value); sim.speed = v < 1 ? v : Math.pow(v, 2.2); $('vSpeed').textContent = sim.speed.toFixed(1) + '×'; });
+$('sLamp').addEventListener('input', e => { sim.lamp = parseFloat(e.target.value); $('vLamp').textContent = sim.lamp.toFixed(2); });
+$('sRoom').addEventListener('input', e => { sim.roomLight = parseFloat(e.target.value); $('vRoom').textContent = sim.roomLight.toFixed(2); });
+$('sVol').addEventListener('input', e => { setVolume(parseFloat(e.target.value)); $('vVol').textContent = parseFloat(e.target.value).toFixed(2); });
+$('cDome').addEventListener('change', e => { dome.want = e.target.checked ? 1 : 0; status(dome.want ? 'Lowering the dome' : 'Lifting the dome'); });
+$('cLabels').addEventListener('change', e => { cam.labels = e.target.checked; });
+$('bEclipse').addEventListener('click', triggerEclipse); $('bAlign').addEventListener('click', triggerAlign); $('bComet').addEventListener('click', sendComet); $('bWind').addEventListener('click', windSpring);
+$('mbCine').addEventListener('click', () => { ensureAudio(); cycleCinematic(); }); $('mbEclipse').addEventListener('click', triggerEclipse); $('mbAlign').addEventListener('click', triggerAlign); $('mbComet').addEventListener('click', sendComet); $('mbFollow').addEventListener('click', () => { unfollow(); cam.cine = -1; });
+$('panelToggle').addEventListener('click', () => $('panel').classList.toggle('open'));
+
+// ==== SOUND =========================================================================
+/* clockwork ambience: a soft tick-tock locked to the escapement, a gear whirr that rises with speed, a hum from the sun lamp,
+   a music-box note when Earth completes a year, a gong for totality, and a ratchet while winding. Unlocked on the first gesture. */
+let audio = null; const SND = { volume: 0.3, master: null, whirr: null, hum: null, announced: false, lastTick: 0, lastYear: 0 };
+function ensureAudio() {
+  if (audio === false) return null;
+  if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); SND.master = audio.createGain(); SND.master.gain.value = SND.volume; SND.master.connect(audio.destination);
+    const len = audio.sampleRate * 5, buf = audio.createBuffer(1, len, audio.sampleRate), d = buf.getChannelData(0); let b = 0; for (let i = 0; i < len; i++) { b = (b + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = b * 3.5; } const f = Math.floor(audio.sampleRate * 0.05); for (let i = 0; i < f; i++) { d[i] *= i / f; d[len - 1 - i] *= i / f; }
+    const src = audio.createBufferSource(); src.buffer = buf; src.loop = true; const bp = audio.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 3; const g = audio.createGain(); g.gain.value = 0.02; src.connect(bp).connect(g).connect(SND.master); src.start(); SND.whirr = { g, bp };
+    const hum = audio.createOscillator(); hum.type = 'sine'; hum.frequency.value = 96; const hg = audio.createGain(); hg.gain.value = 0.012; const h2 = audio.createOscillator(); h2.type = 'sine'; h2.frequency.value = 192.5; const hg2 = audio.createGain(); hg2.gain.value = 0.005; hum.connect(hg).connect(SND.master); h2.connect(hg2).connect(SND.master); hum.start(); h2.start(); SND.hum = hg;
+    audio.onstatechange = () => { if (audio.state === 'running' && !SND.announced) { SND.announced = true; status('Sound on · volume in The Mechanism'); } }; } catch (e) { audio = false; return null; } }
+  if (audio.state === 'suspended') audio.resume().catch(() => {}); return audio;
+}
+function setVolume(v) { SND.volume = v; if (SND.master) SND.master.gain.setTargetAtTime(v, audio.currentTime, 0.05); }
+const running = () => audio && audio.state === 'running';
+function tone(freq, gain, attack, decay, type = 'sine', sweepTo = null) { if (!running()) return; const t = audio.currentTime, o = audio.createOscillator(), g = audio.createGain(); o.type = type; o.frequency.setValueAtTime(freq, t); if (sweepTo) o.frequency.exponentialRampToValueAtTime(sweepTo, t + decay); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(gain, t + attack); g.gain.exponentialRampToValueAtTime(0.0002, t + attack + decay); o.connect(g).connect(SND.master); o.start(t); o.stop(t + attack + decay + 0.05); }
+function noiseBurst(len, freq, gain, decayPow = 3) { if (!running()) return; const t = audio.currentTime, buf = audio.createBuffer(1, audio.sampleRate * len, audio.sampleRate), d = buf.getChannelData(0); let b = 0; for (let i = 0; i < d.length; i++) { b = (b + 0.05 * (Math.random() * 2 - 1)) / 1.05; d[i] = b * 4 * Math.pow(1 - i / d.length, decayPow); } const s = audio.createBufferSource(); s.buffer = buf; const f = audio.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = freq; const g = audio.createGain(); g.gain.value = gain; s.connect(f).connect(g).connect(SND.master); s.start(t); }
+function boom() { noiseBurst(0.9, 320, 0.7, 2.5); tone(60, 0.12, 0.005, 0.5, 'sine', 35); }
+function thunder() { noiseBurst(2.6, 220, 0.6, 1.6); }
+function plop(p) { tone(300 + p * 120, 0.06 * p, 0.004, 0.2, 'sine', 90); }
+function tink() { tone(2100, 0.035, 0.002, 0.5); tone(3150, 0.015, 0.002, 0.35); }
+
+function tickTock(hi) { if (!running()) return; const t = audio.currentTime, o = audio.createOscillator(), g = audio.createGain(), f = audio.createBiquadFilter(); o.type = 'square'; o.frequency.value = hi ? 1900 : 1500; f.type = 'bandpass'; f.frequency.value = hi ? 2400 : 1800; f.Q.value = 6; g.gain.setValueAtTime(0.05, t); g.gain.exponentialRampToValueAtTime(0.0003, t + 0.045); o.connect(f).connect(g).connect(SND.master); o.start(t); o.stop(t + 0.06); }
+function chime(k = 1) { for (const [f, g, d] of [[1046, 0.03, 2.2], [1568, 0.018, 1.8], [2093, 0.01, 1.2]]) tone(f, g * k, 0.005, d); }
+function gong() { for (const [f, g, d] of [[196, 0.06, 4.5], [392, 0.03, 3.5], [587, 0.015, 2.5], [1176, 0.008, 1.2]]) tone(f, g, 0.01, d); }
+function ratchet() { if (!running()) return; for (let i = 0; i < 12; i++) setTimeout(() => tone(700 + i * 20, 0.02, 0.002, 0.05, 'square'), i * 230); }
+function updateSound(dt) {
+  if (!running()) return; const t = audio.currentTime;
+  const tickPhase = Math.floor(mech.tick * 2); if (tickPhase !== SND.lastTick) { SND.lastTick = tickPhase; tickTock(tickPhase % 2 === 0); }
+  SND.whirr.g.gain.setTargetAtTime(0.012 + Math.min(1, sim.speed / 8) * 0.05 + (mech.winding > 0 ? 0.02 : 0), t, 0.3); SND.whirr.bp.frequency.setTargetAtTime(700 + Math.min(1, sim.speed / 8) * 900, t, 0.3);
+  SND.hum.gain.setTargetAtTime(0.004 + sim.lamp * 0.012, t, 0.3);
+  const yr = Math.floor(sim.years); if (yr !== SND.lastYear) { SND.lastYear = yr; chime(0.7); }
+}
+
+// ==== LOOP ==========================================================================
+let last = performance.now(), fps = 60, frames = 0, fpsT = 0, hudT = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = clamp((now - last) / 1000, 0, 0.05); last = now; frames++; fpsT += dt; if (fpsT > 0.5) { fps = frames / fpsT; frames = 0; fpsT = 0; }
+  updateOrrery(dt); drawDynamic(dt); updateCamera(dt); if (audio) updateSound(dt);
+  mouse.hoverT -= dt; if (mouse.hoverT > -0.1 && mouse.hoverT <= 0) { updateHover(); mouse.hoverT = -1; }
+  renderer.render(scene, camera);
+  hudT += dt; if (hudT > 0.4) { hudT = 0; $('hFps').textContent = fps.toFixed(0); $('hVox').textContent = totalVox.toLocaleString(); $('hYear').textContent = Math.floor(sim.years); }
+}
+let totalVox = 0;
+(async () => {
+  const msg = $('loadmsg'); const step = async m => { msg.textContent = m; await new Promise(r => setTimeout(r, 30)); };
+  await step('casting the brass…'); initPools(); buildRoom();
+  await step('turning the planets…'); buildPlanets(); spawnBelt(); buildCines();
+  totalVox = room.count + sunGroup.voxels + bodies.reduce((n, b) => n + b.voxels, 0);
+  $('load').style.display = 'none'; last = performance.now(); requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
