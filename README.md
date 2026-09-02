@@ -10,6 +10,7 @@ Small browser games, published at https://play-grounds.github.io/games/
 | Railway Model | https://play-grounds.github.io/games/railway/ | A tabletop voxel model railway with routed trains, switches, signals, crossings and derailments. Single HTML file, Three.js r128 from cdnjs. |
 | Snow Globe | https://play-grounds.github.io/games/snowglobe/ | A voxel winter village under glass with settling snow, skaters, sledging, a sleigh, aurora and a music box. Single HTML file, Three.js r128 from cdnjs. |
 | Zen Garden | https://play-grounds.github.io/games/zengarden/ | A voxel dry garden you rake yourself, with koi, a seasonal maple, a bamboo fountain and a singing bowl. Single HTML file, Three.js r128 from cdnjs. |
+| Ant Kingdom | https://play-grounds.github.io/games/antkingdom/ | A voxel ant farm with live tunnelling, pheromone trails, a queen, floods, raids and an anteater. Single HTML file, Three.js r128 from cdnjs. |
 
 Each game lives in its own directory as a self-contained `index.html`.
 
