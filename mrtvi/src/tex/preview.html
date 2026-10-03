@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>textures</title>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+</script></head>
+<body style="margin:0;background:#111">
+<script type="module">
+import * as THREE from 'three';
+import { makeTextures } from '../textures.js';
+const renderer = new THREE.WebGLRenderer();
+const game = { THREE, renderer };
+window.T = makeTextures(game);
+// Composite a set of textures onto one canvas, each tiled 2x horizontally to check seams.
+window.sheet = (keys, cell = 256, tile = 2) => {
+  const items = keys.map((k) => { const m = k.match(/^(\w+)\((\d+)\)$/); return [k, m ? T[m[1]](+m[2]) : T[k]]; });
+  const cols = Math.min(4, items.length), rows = Math.ceil(items.length / cols);
+  const ws = items.map(([, t]) => t.image.width / t.image.height);
+  const cw = cell * tile * Math.max(...ws), ch = cell + 16;
+  const c = document.createElement('canvas'); c.width = cw * cols; c.height = ch * rows;
+  const g = c.getContext('2d'); g.fillStyle = '#ff00ff'; g.fillRect(0, 0, c.width, c.height);
+  items.forEach(([k, t], n) => {
+    const x = (n % cols) * cw, y = Math.floor(n / cols) * ch, w = cell * t.image.width / t.image.height;
+    for (let j = 0; j < tile; j++) g.drawImage(t.image, x + j * w, y + 16, w, cell);
+    g.fillStyle = '#fff'; g.font = '12px sans-serif'; g.fillText(k + ' ' + t.userData.metres, x + 4, y + 12);
+  });
+  return c.toDataURL('image/png');
+};
+window.ready = true;
+</script></body></html>
