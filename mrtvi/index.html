@@ -36,6 +36,18 @@
 </head>
 <body>
 <div id="hud"></div>
-<script type="module" src="src/main.js"></script>
+<script>
+  // If three.js or a module can't be fetched the game never starts; say so instead of a black page.
+  function bootFail() {
+    if (document.documentElement.dataset.booted || document.getElementById('bootfail')) return;
+    var d = document.createElement('div');
+    d.id = 'bootfail';
+    d.style.cssText = 'position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#e8e2d6;font:16px/1.5 system-ui,sans-serif;text-align:center;padding:16px;background:#0b0c0e';
+    d.innerHTML = '<b style="font-size:22px;letter-spacing:.2em">MRTVÍ</b><div>Hru se nepodařilo načíst — the game didn\u2019t load.<br><small style="opacity:.7">three.js comes from cdn.jsdelivr.net; check the connection or a blocker.</small></div><button style="font:inherit;padding:8px 20px;background:#e8e2d6;color:#0b0c0e;border:0;cursor:pointer" onclick="location.reload()">Znovu — retry</button>';
+    document.body.appendChild(d);
+  }
+  setTimeout(bootFail, 90000);   // last resort; main.js removes the message if it does boot
+</script>
+<script type="module" src="src/main.js" onerror="bootFail()"></script>
 </body>
 </html>

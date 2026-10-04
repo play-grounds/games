@@ -179,3 +179,38 @@ beneath. Style: worn, stencil-like, off-white on dark, no neon.
 - `window.game` is exposed for tests; `game.step(n, dt=1/60)` advances n frames manually.
 - Module owners: test your module by loading the page and screenshotting with
   `node test/shot.mjs "<query>" out.png` (e.g. `"?at=150,10,0&nodead"`).
+
+## Round 3 additions (adversarial review)
+
+**Phases.** `game.state.phase` ∈ `title | play | paused | dead | won | trailer`. main pauses on
+pointer-lock loss (`paused`) and resumes on click. main skips `dead.update` unless phase is
+`play` or `trailer`, and skips `player.update` on `title`/`paused` (calling `player.syncCamera()`
+instead). `playerDied` after a win is ignored. The trailer must keep working: run
+`node test/trailer.mjs` as well as `node test/smoke.mjs` before you finish.
+
+**Light budget — constant light count.** three.js recompiles every lit material when the number
+of lights changes, so no module adds, removes or toggles `visible` on lights after boot; dim to
+intensity 0 instead. Fixed budget (8 local lights total):
+- player: flashlight SpotLight, fill PointLight, muzzle PointLight (3)
+- atmos: 3 PointLights for the nearest fires/lanterns, fed from `game.world.fires` (3)
+- interior: 2 PointLights, intensity 0 while outside (2)
+- world: none (lanterns and fires are emissive meshes + entries in `world.fires`)
+
+**Pickups and healing.**
+- `player.heal(n)` (cap 100), `player.addAmmo(n)` (adds to reserve), both play `audio.pickup()`.
+- `game.state.seed` (from `?seed=N`, default random 1..9999, shown on end screens).
+- world places pickups as interactables: bandages (+35) at (150,20) and (−125,10); 6 pistol
+  rounds at each bridge tower foot (52,3) and (−52,−3). Label e.g. "Obvaz — Bandage (+35)".
+  Each is a small visible mesh that disappears when used.
+- interior places one bandage on a shelf, and the medicine case in one of 3 positions chosen by
+  `game.state.seed`.
+
+**Detection.** `game.dead.seeing` = number of dead that currently have line of sight to the
+player and are chasing; the HUD shows "Vidí tě — they see you" when > 0.
+
+**Audio.** new `audio.bodyFall(x, z)`; `audio.footstep` accepts `'cobble' | 'stone' | 'wood' |
+'tiles' | 'glass' | 'water'`.
+
+**Settings.** mouse sensitivity in `localStorage['mrtvi.sens']` (default 1.0 → 0.0008 rad/count, clamped 0.3–2.5),
+editable on the pause screen; best time per seed in `localStorage['mrtvi.best']`. Wrap every
+storage access in try/catch.

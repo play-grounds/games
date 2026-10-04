@@ -36,3 +36,23 @@ Open Graph and Twitter tags, a share image rendered from the trailer's river sho
 > ship it
 
 Published here as `games/mrtvi/`.
+
+## Adversarial rounds
+
+> keep the trailer. do one round of adversarial critics in sub agents. and do improvements, but dont ship.
+
+> after this is all done, do another 2 passes, and then report the score increases.
+
+Five adversarial critics (a bug hunter, a harsh first-time player, an art director, a performance reviewer, an audio and game-feel critic) tried to break the game, then per-file revisers fixed what they found, three times over, with the trailer guarded by its own test. Scores on the same scales, first round → final:
+
+| Critic | Baseline | Final |
+|---|---|---|
+| Art (characters, environment, lighting, first person, cohesion) | 4 · 6.5 · 6 · 4 · 6 | 6 · 7.5 · 6.5 · 5.5 · 6.5 |
+| Player (clarity, tension, combat, stealth, pacing, replay) | 7 · 6 · 4 · 3 · 4 · 2 | 7 · 7 · 5 · 5 · 5 · 3 |
+| Audio and feel (design, mix, spatial, combat, movement) | 7 · 3 · 6 · 4 · 3 | 7 · 6 · 6 · 6 · 6 |
+| Stability, performance, robustness | 10 bugs · ~4 · ~5 | 8 · 8 · 6 (a gate lock-out, fixed before release) |
+| Bot deliveries, walked runs | 0/10 | 17/35 |
+
+Along the way: 633k → 34k triangles in the start view, 16 → 8 constant lights, a 3.2 s shader stall gone, pause on lost pointer lock, pickups and healing, stealth kills, a late chase up Nerudova, a rebalanced synthesised mix.
+
+> go, ship

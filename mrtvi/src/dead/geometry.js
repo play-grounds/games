@@ -156,8 +156,8 @@ const sm = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
 const WHITE = [1, 1, 1];
 const DARK = [0.025, 0.018, 0.015];
 const WOUND = [0.06, 0.014, 0.012];
-const TEETH = [0.36, 0.31, 0.2];
-const SHOE = [0.035, 0.03, 0.028];
+const TEETH = [0.2, 0.17, 0.11];
+const SHOE = [0.022, 0.019, 0.017];
 
 function torso() {
   const R = [
@@ -175,9 +175,10 @@ function torso() {
   ];
   const g = tube(R, 14);
   return build(g, (x, y, z) => {
-    if (y > 0.556) return { c: [0.8, 0.8, 0.8], m: 0, gore: z > 0.07 ? 0.2 : 0 };          // neck
+    // neck: shaded where it leaves the collar and under the jaw, so no pale band shows at the seam
+    if (y > 0.556) { const k = 0.3 + 0.14 * sm(0.556, 0.6, y) - (z > 0.06 && y > 0.6 ? 0.08 : 0); return { c: [k, k * 0.97, k * 0.95], m: 0, gore: z > 0.07 ? 0.2 : 0 }; }
     // V-neck / collar opening
-    if (y > 0.47 && z > 0.06 && Math.abs(x) < 0.07 - (0.55 - y) * 0.6) return { c: [0.85, 0.82, 0.8], m: 0, gore: 0.15 };
+    if (y > 0.47 && z > 0.06 && Math.abs(x) < 0.07 - (0.55 - y) * 0.6) return { c: [0.5, 0.45, 0.43], m: 0, gore: 0.25 };   // shadowed, grimy: not a white bib
     // torn shirt, exposed wound on the left flank
     const tear = x < -0.03 && z > 0.02 && y > 0.2 && y < 0.37 && N(x * 30, y * 30, z * 30) > 0.42;
     if (tear) return { c: [0.75, 0.42, 0.38], m: 0, gore: 0.45 };
@@ -202,14 +203,18 @@ function head() {
     let rx = 0.079, ry = 0.102, rz = 0.094, k = 1;
     if (uz < -0.3 && uy > -0.3) rz *= 1.06;                                // occiput
     if (uy < -0.2 && uz > 0) rx *= 1 - 0.28 * sm(-0.2, -0.8, uy) * uz;     // narrow maxilla
-    if (Math.abs(ux) > 0.45 && uy < 0.05 && uy > -0.6 && uz > 0.15) k *= 0.93; // hollow cheeks
+    const ax = Math.abs(ux);
+    if (ax > 0.45 && uy < -0.12 && uy > -0.6 && uz > 0.15) k *= 0.91;   // hollow cheeks under the bone
+    if (ax > 0.42 && ax < 0.85 && uy > -0.14 && uy < 0.08 && uz > 0.35) k *= 1.07;   // cheekbones
+    if (ax > 0.5 && uy < -0.42 && uz > -0.25 && uz < 0.55) k *= 1.06;  // angle of the jaw
+    if (uy < -0.72 && uz > 0.45) k *= 1.04;                             // chin
     if (uy > 0.28 && uy < 0.45 && uz > 0.75) k *= 1.04;                    // brow ridge
     let socket = 0;
     for (const e of eyes) {
       const w = Math.hypot(ux - e[0], uy - e[1], uz - e[2]);
       if (w < 0.33) socket = Math.max(socket, 1 - w / 0.33);
     }
-    k *= 1 - 0.16 * socket;
+    k *= 1 - 0.24 * socket;
     const wn = Math.hypot(ux - nose[0], uy - nose[1], uz - nose[2]);
     const nasal = wn < 0.17 ? 1 - wn / 0.17 : 0;
     k *= 1 - 0.08 * nasal;
@@ -234,7 +239,10 @@ function jaw() {
   return build(g, (x, y, z) => {
     if (y > -0.016 && z > 0.06) return { c: Math.sin(x * 160) > -0.4 ? TEETH : DARK, m: 2, gore: -1 };
     if (y > -0.016) return { c: WOUND, m: 2, gore: -1 };
-    return { c: WHITE, m: 0, gore: 0.45 };
+    // underside: in the head's shadow, darker towards the hinge — never a lit pale box
+    // (raw colour: a textured skin box this small lit flat and read as a pale block at the collar)
+    const k = 0.07 + 0.05 * Math.max(0, Math.min(1, (z - 0.02) / 0.08));
+    return { c: [k * 0.95, k, k * 0.82], m: 2, gore: -1 };
   });
 }
 
@@ -244,8 +252,9 @@ function upperArm() {
     { y: 0.02, rx: 0.046, zf: 0.046 },
     { y: -0.04, rx: 0.05, zf: 0.047 },
     { y: -0.14, rx: 0.042, zf: 0.04 },
-    { y: -0.25, rx: 0.036, zf: 0.035 },
-    { y: -L, rx: 0.034, zf: 0.033 },
+    { y: -0.22, rx: 0.034, zf: 0.033 },
+    { y: -L + 0.02, rx: 0.036, zf: 0.032, zb: 0.04 },
+    { y: -L, rx: 0.037, zf: 0.03, zb: 0.045 },
   ], 9, { bulge: 0.8 });
   return build(g, (x, y) => ({ c: WHITE, t: 0.5 * Math.min(1, -y / L), m: 1, w: 0, gore: -0.05 }), [seam(g)]);
 }
@@ -253,26 +262,48 @@ function upperArm() {
 function foreArm() {
   const L = SKEL.farm;
   const arm = tube([
-    { y: 0.01, rx: 0.035, zf: 0.034 },
-    { y: -0.06, rx: 0.037, zf: 0.033 },
-    { y: -0.2, rx: 0.027, zf: 0.024 },
-    { y: -L, rx: 0.024, zf: 0.02 },
+    { y: 0.01, rx: 0.036, zf: 0.03, zb: 0.04 },
+    { y: -0.07, rx: 0.04, zf: 0.034 },
+    { y: -0.19, rx: 0.026, zf: 0.022 },
+    { y: -L, rx: 0.023, zf: 0.017 },
   ], 9, { capTop: true, capBot: false });
-  const hand = tube([
-    { y: -L + 0.005, rx: 0.026, zf: 0.02 },
-    { y: -L - 0.02, rx: 0.042, zf: 0.017, oz: 0.004 },
-    { y: -L - 0.065, rx: 0.044, zf: 0.016, oz: 0.014 },
-    { y: -L - 0.1, rx: 0.034, zf: 0.013, oz: 0.034 },
-  ], 8, { capTop: false });
-  const nA = arm.pos.length / 3;
-  const all = merge(arm, hand);
+  const palm = tube([
+    { y: -L + 0.005, rx: 0.025, zf: 0.018 },
+    { y: -L - 0.025, rx: 0.04, zf: 0.016, oz: 0.004 },
+    { y: -L - 0.06, rx: 0.039, zf: 0.014, oz: 0.012 },
+  ], 8, { capTop: false, bulge: 0.2 });
+  // splayed, hooked fingers: each curls forward (+Z) into a claw
+  const fingers = [];
+  const y0 = -L - 0.056;
+  [[-0.027, 0.9, -1], [-0.009, 1.0, -0.35], [0.009, 0.97, 0.35], [0.026, 0.82, 1]].forEach(([fx, len, spread]) => {
+    const rings = [
+      { y: y0, rx: 0.0088, zf: 0.0078, ox: fx, oz: 0.012 },
+      { y: y0 - 0.04 * len, rx: 0.0075, zf: 0.0068, ox: fx + spread * 0.008, oz: 0.024 },
+      { y: y0 - 0.06 * len, rx: 0.0055, zf: 0.005, ox: fx + spread * 0.012, oz: 0.058 },
+    ];
+    fingers.push(tube(rings, 4, { capTop: false, bulge: 0.6 }));
+  });
+  // thumb, out to the front and hooked in
+  fingers.push(tube([
+    { y: -L - 0.018, rx: 0.009, zf: 0.008, ox: 0, oz: 0.02 },
+    { y: -L - 0.04, rx: 0.008, zf: 0.007, ox: 0, oz: 0.04 },
+    { y: -L - 0.06, rx: 0.006, zf: 0.005, ox: 0, oz: 0.052 },
+  ], 4, { capTop: false, bulge: 0.6 }));
+  const nA = arm.pos.length / 3, nP = palm.pos.length / 3;
+  const all = merge(arm, palm, ...fingers);
+  let vi = 0;
+  const seams = [seam(arm), seam(palm, nA)];
+  let base = nA + nP;
+  for (const f of fingers) { seams.push(seam(f, base)); base += f.pos.length / 3; }
   return build(all, (x, y) => {
-    if (y < -L - 0.003) {
-      const nail = y < -L - 0.085;
-      return { c: nail ? [0.42, 0.35, 0.32] : [0.85, 0.82, 0.8], t: 1, m: 0, gore: 0.12 };
+    const i = vi++;
+    if (i >= nA + nP) {
+      const nail = y < y0 - 0.05;
+      return { c: nail ? [0.3, 0.25, 0.2] : [0.8, 0.77, 0.74], t: 1, m: 0, gore: 0.15 };
     }
+    if (y < -L - 0.003) return { c: [0.85, 0.82, 0.8], t: 1, m: 0, gore: 0.12 };
     return { c: WHITE, t: 0.5 + 0.45 * Math.min(1, -y / L), m: 1, w: 0, gore: 0.05 };
-  }, [seam(arm), seam(hand, nA)]);
+  }, seams);
 }
 
 function thigh() {
@@ -281,8 +312,9 @@ function thigh() {
     { y: 0.04, rx: 0.08, zf: 0.08 },
     { y: -0.05, rx: 0.088, zf: 0.09 },
     { y: -0.25, rx: 0.07, zf: 0.072 },
-    { y: -0.41, rx: 0.056, zf: 0.06 },
-    { y: -L, rx: 0.053, zf: 0.056 },
+    { y: -0.38, rx: 0.054, zf: 0.058 },
+    { y: -L + 0.01, rx: 0.056, zf: 0.066 },
+    { y: -L, rx: 0.054, zf: 0.062 },
   ], 9, { bulge: 0.5 });
   return build(g, (x, y) => ({ c: WHITE, t: 0.5 * Math.min(1, -y / L), m: 1, w: 1, gore: -0.1 }), [seam(g)]);
 }

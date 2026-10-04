@@ -2,8 +2,8 @@
 // renderScore(ctx, dest, t0, { from }) schedules the whole score into any BaseAudioContext
 // (live or offline) with trailer time T mapped to ctx time t0 + T, skipping everything
 // before `from`. createScore(game) wraps it for the live trailer: it plays on the game's
-// own AudioContext (game.audio.ctx) through its own limiter, straight to ctx.destination,
-// alongside (and under) the game's sounds. Key: D minor, the same D1/A1 as the game drone.
+// own AudioContext (game.audio.ctx) straight into the game's final limiter
+// (game.audio.musicIn; its own limiter only when standalone), so score + game together stay ≤ −1 dBFS. Key: D minor, the same D1/A1 as the game drone.
 import * as S from '../audio/synth.js';
 import { CUES, LENGTH } from './timeline.js';
 
@@ -190,13 +190,18 @@ export function renderScore(ctx, dest, t0, { from = 0 } = {}) {
     kill(when, fade = 0.02) {
       out.gain.cancelScheduledValues(when); out.gain.setValueAtTime(out.gain.value, when); out.gain.linearRampToValueAtTime(0, when + fade);
       for (const s of srcs) try { s.stop(when + fade + 0.01); } catch {}
-      setTimeout(() => { try { out.disconnect(); } catch {} }, (fade + 0.2) * 1000);
+      const k = new ConstantSourceNode(ctx, { offset: 0 });       // disconnect on the audio clock, not wall time
+      k.connect(out); k.onended = () => { try { k.disconnect(); out.disconnect(); } catch {} };
+      k.start(when); k.stop(when + fade + 0.2);
     },
   };
 }
 
 // Output chain: limiter keeping peaks ≤ −1 dBFS, music level sitting under the game.
-export function makeOutput(ctx, dest = ctx.destination, level = 0.6) {
+// limit=false: dest already has a limiter (game.audio.musicIn) — plain gain, with the ≈+1.4 dB
+// makeup the bypassed limiter would have added so the score keeps its level.
+export function makeOutput(ctx, dest = ctx.destination, level = 0.6, limit = true) {
+  if (!limit) { const g = S.gain(ctx, level * 1.17); g.connect(dest); return g; }
   const lim = new DynamicsCompressorNode(ctx, { threshold: -2.5, knee: 2, ratio: 20, attack: 0.002, release: 0.3 });
   const g = S.gain(ctx, level); lim.connect(g).connect(dest);
   return lim;
@@ -208,7 +213,9 @@ export function createScore(game) {
     if (ctx) return ctx;
     ctx = game?.audio?.ctx || null;
     if (!ctx) { own = true; ctx = new (window.AudioContext || window.webkitAudioContext)(); console.warn('[music] game.audio.ctx unavailable — using own AudioContext'); }
-    outIn = makeOutput(ctx);
+    const mi = !own && game?.audio?.musicIn;              // one limiter for score + game
+    const shared = !!(mi && mi.context === ctx);
+    outIn = makeOutput(ctx, shared ? mi : ctx.destination, 0.6, !shared);
     return ctx;
   };
   function schedule(from) {

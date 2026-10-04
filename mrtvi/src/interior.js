@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng, INTERIOR, PHARMACY_DOOR, heightAt } from './layout.js';
+import { interiorWallTex, fogGlassTex, WALL_METRES } from './interior/walltex.js';
 
 // The pharmacy (lékárna) interior, built in its own cell at layout.INTERIOR.
 // Local frame: origin = INTERIOR, x east, z south, floor y = 0.
@@ -14,7 +15,20 @@ const SHOP = { x0: -8, x1: 8, z0: -5, z1: 5, h: 3.6 };
 const STORE = { x0: -4, x1: 8, z0: -11, z1: -5, h: 3.0 };
 const DOORWAY = { x0: 3.4, x1: 4.6, h: 2.2 };
 const ENTRY = { x: 0, z: 3.3, yaw: 0 };                 // just inside the front door, facing north into the shop
-const CASE = { x: 0.5, y: 0.8, z: -10.35 };
+// The medicine case sits in one of three places, picked by game.state.seed (index 0 in the trailer):
+// the storeroom table, on an upturned crate behind the counter, or on the floor by the toppled unit.
+const CASES = [
+  { x: 0.5, y: 0.8, z: -10.35, ry: 0.12, rz: 0 },
+  { x: -1.0, y: 0.42, z: -3.3, ry: -0.45, rz: 0 },
+  { x: -1.55, y: 0.0, z: 0.45, ry: 0.9, rz: 0.05 },
+];
+const CASE = CASES[0];
+// One bandage on a shelf, also by seed: free-standing unit, back wall behind the counter, west wall.
+const BANDAGES = [
+  { x: 4.2, y: 1.043, z: 1.32, ry: 0 },
+  { x: 2.2, y: 1.335, z: -4.63, ry: 0 },
+  { x: -7.45, y: 1.335, z: 1.6, ry: Math.PI / 2 },
+];
 const SPAWNS = [[-1.5, -7.5], [4.2, -8.6], [-5.6, 2.4]];   // the third stands between the shelves and the lit windows
 
 export function create(game) {
@@ -92,7 +106,14 @@ export function create(game) {
     g.fillStyle = gr; g.fillRect(0, 0, w, w);
   }, false);
 
-  const wallTex = texOf('interiorWall'), plankTex = texOf('plank'), rustTex = texOf('rust');
+  let wallTex = null;
+  try {
+    wallTex = new THREE.CanvasTexture(interiorWallTex());
+    wallTex.colorSpace = THREE.SRGBColorSpace; wallTex.wrapS = wallTex.wrapT = THREE.RepeatWrapping;
+    wallTex.anisotropy = Math.min(8, game.renderer?.capabilities?.getMaxAnisotropy?.() || 1);
+    wallTex.userData.metres = WALL_METRES;
+  } catch (e) { wallTex = texOf('interiorWall'); }
+  const plankTex = texOf('plank'), rustTex = texOf('rust');
   const MAT = {
     wall: dark(new THREE.MeshLambertMaterial({ color: wallTex ? 0x9a9284 : 0x5d574b, map: wallTex })),
     floor: dark(new THREE.MeshLambertMaterial({ color: 0xb0aaa0, map: tilesTex })),
@@ -113,7 +134,7 @@ export function create(game) {
     box: dark(new THREE.MeshLambertMaterial({ color: 0xffffff })),
     can: dark(new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 70, specular: 0x777777 })),
     caseBody: dark(new THREE.MeshPhongMaterial({ color: 0xc8c4b8, shininess: 70, specular: 0x666666 })),
-    caseRed: dark(new THREE.MeshLambertMaterial({ color: 0x9a1010, emissive: 0xff2018, emissiveIntensity: 0.8 })),
+    caseRed: dark(new THREE.MeshLambertMaterial({ color: 0x9a1010, emissive: 0xff2018, emissiveIntensity: 1.0 })),
     exit: new THREE.MeshBasicMaterial({ map: canvasTex(256, 96, (g, w, h) => {
       g.fillStyle = '#0b5a2a'; g.fillRect(0, 0, w, h);
       g.fillStyle = '#c8ffd8'; g.font = 'bold 38px sans-serif'; g.textBaseline = 'middle';
@@ -123,14 +144,45 @@ export function create(game) {
       g.save(); g.translate(28, 58); g.rotate(-0.5); g.fillRect(-8, 0, 8, 26); g.restore();
       g.fillStyle = 'rgba(0,0,0,0.35)'; for (let i = 0; i < 30; i++) g.fillRect(Math.floor(R() * w), Math.floor(R() * h), 2 + R() * 14, 2 + R() * 6);   // grime
     }, false), fog: false }),
-    glow: new THREE.MeshBasicMaterial({ color: 0x1a2738, fog: false }),
+    pane: new THREE.MeshBasicMaterial({ map: canvasTex(128, 128, (g) => g.drawImage(fogGlassTex(), 0, 0), false), color: 0x445066, fog: false }),
+    bandage: dark(new THREE.MeshLambertMaterial({ color: 0xe6e1d2 })),
     shaft: new THREE.MeshBasicMaterial({ color: 0x24344c, opacity: 1, map: shaftTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }),
     pool: new THREE.MeshBasicMaterial({ color: 0x1c2a3c, map: poolTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, polygonOffset: true, polygonOffsetFactor: -3 }),
   };
 
+  MAT.glow = new THREE.MeshBasicMaterial({ color: 0x1a2738, map: MAT.pane.map, fog: false });   // glass behind the boards
+  // Draw-call budget: the small untextured materials are folded into a few vertex-coloured ones,
+  // and every jar, bottle, lid, pill, box, shard and can is baked into those merged meshes too
+  // (all static), so the room is ~18 draws instead of ~37.
+  MAT.plain = dark(new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true }));
+  MAT.shiny = dark(new THREE.MeshPhongMaterial({ color: 0xffffff, vertexColors: true, shininess: 50, specular: 0x4a4639 }));
+  MAT.plank = dark(new THREE.MeshLambertMaterial({ color: 0xffffff, map: plankTex, vertexColors: true }));
+  MAT.panes = new THREE.MeshBasicMaterial({ color: 0xffffff, map: MAT.pane.map, vertexColors: true, fog: false });
+  MAT.glass.vertexColors = true;
+  MAT.shard.vertexColors = true;
+  MAT.caseBody.vertexColors = true;
+  const lin = (hex) => new THREE.Color().setHex(hex);
+  // old material key → [merged material, its colour] (colours as the materials had them)
+  const REMAP = {
+    cloth: ['plain', lin(0xbdb8aa)], blanket: ['plain', lin(0x3f4632)], paper: ['plain', lin(0xffffff)], ceil: ['plain', lin(0x4a4740)],
+    store: ['plank', lin(plankTex ? 0x6a5a48 : 0x3a3026)], board: ['plank', lin(plankTex ? 0x8a7a66 : 0x4e4234)],
+    brass: ['shiny', lin(0x8a6a2a)], lid: ['shiny', lin(0xffffff)],
+    glow: ['panes', new THREE.Color(0.4, 0.52, 0.75)], pane: ['panes', new THREE.Color(0.34, 0.405, 0.535)],
+  };
+  const paint = (g, c) => {
+    const n = g.attributes.position.count, a = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(a, 3));
+    return g;
+  };
+
   // ---------- geometry helpers (merged per material) ----------
   const parts = {};
-  const put = (mat, geo) => (parts[mat] || (parts[mat] = [])).push(geo);
+  const put = (mat, geo) => {
+    const r = REMAP[mat];
+    if (r) { paint(geo, r[1]); mat = r[0]; }
+    (parts[mat] || (parts[mat] = [])).push(geo);
+  };
   const E = new THREE.Euler(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), ONE = new THREE.Vector3(1, 1, 1);
   const mtx = (x = 0, y = 0, z = 0, ry = 0, rx = 0, rz = 0, s = ONE) => {
     E.set(rx, ry, rz, 'YXZ'); Q.setFromEuler(E); V.set(x, y, z);
@@ -218,7 +270,7 @@ export function create(game) {
   // front door (exit) + boarded windows with weak bluish street light leaking in
   const fz = 4.95;
   box('wood', I, 1.3, 2.35, 0.08, 0, 1.175, 4.92);
-  quad('glow', v3(0.4, 1.35, 4.87), v3(-0.4, 1.35, 4.87), v3(-0.4, 2.15, 4.87), v3(0.4, 2.15, 4.87));
+  quad('pane', v3(0.4, 1.35, 4.87), v3(-0.4, 1.35, 4.87), v3(-0.4, 2.15, 4.87), v3(0.4, 2.15, 4.87), 0.8, 0.8);
   box('board', I, 1.1, 0.12, 0.03, 0, 1.55, 4.84, 0, 0, 0.15);
   box('board', I, 1.1, 0.12, 0.03, 0, 1.92, 4.84, 0, 0, -0.1);
   box('wood', I, 0.1, 2.5, 0.12, -0.7, 1.25, 4.92); box('wood', I, 0.1, 2.5, 0.12, 0.7, 1.25, 4.92); box('wood', I, 1.5, 0.12, 0.12, 0, 2.48, 4.92);
@@ -226,7 +278,7 @@ export function create(game) {
   const windows = [-5, 5];
   const shafts = [], shaftLines = [];
   for (const wx of windows) {
-    quad('glow', v3(wx + 1.2, 0.9, fz - 0.02), v3(wx - 1.2, 0.9, fz - 0.02), v3(wx - 1.2, 2.9, fz - 0.02), v3(wx + 1.2, 2.9, fz - 0.02));
+    quad('glow', v3(wx + 1.2, 0.9, fz - 0.02), v3(wx - 1.2, 0.9, fz - 0.02), v3(wx - 1.2, 2.9, fz - 0.02), v3(wx + 1.2, 2.9, fz - 0.02), 2.4, 2);
     box('wood', I, 2.6, 0.12, 0.25, wx, 0.85, fz - 0.1);   // sill
     box('wood', I, 2.6, 0.1, 0.12, wx, 2.95, fz - 0.05);
     box('wood', I, 0.08, 2.1, 0.12, wx, 1.9, fz - 0.05);   // mullion
@@ -353,6 +405,11 @@ export function create(game) {
     box('brass', I, 0.36, 0.015, 0.015, -4.5, 1.32, -1.6, 0, 0, 0.15);
   }
 
+  // upturned crate behind the counter
+  box('wood', I, 0.56, 0.42, 0.46, CASES[1].x, 0.21, CASES[1].z, -0.35);
+  box('board', I, 0.6, 0.02, 0.1, CASES[1].x + 0.05, 0.43, CASES[1].z + 0.12, -0.3);
+  solid(CASES[1].x, CASES[1].z, 0.32, 0.3, 0, 0.45);
+
   // ---------- scattered stuff ----------
   const boxCols = [0xd8d2c0, 0x9cb0c4, 0xc0a070, 0xe0e0d8, 0x7a9a7a, 0xc07060];
   const scatterBox = (x, z, y = 0) => {
@@ -469,6 +526,33 @@ export function create(game) {
   quad('exit', v3(7.875, 2.35, -1.28), v3(7.875, 2.35, -0.72), v3(7.875, 2.55, -0.72), v3(7.875, 2.55, -1.28), 0.56, 0.2);
   scatter(0.5, -9.0, 1.4, 12, 5, 0, 0);
 
+  // ---------- bake the small props into the merged meshes ----------
+  // Low-poly on purpose (6 sides, no hidden bottoms): ~600 of them sit on the shelves.
+  const lathe = (pts) => new THREE.LatheGeometry(pts.map(([x, y]) => new THREE.Vector2(x, y)), 6);
+  const cylTop = () => mergeGeometries([
+    new THREE.CylinderGeometry(1, 1, 1, 6, 1, true).translate(0, 0.5, 0),
+    new THREE.CircleGeometry(1, 6).rotateX(-Math.PI / 2).translate(0, 1, 0),
+  ]);
+  const shardGeo = new THREE.BufferGeometry()
+    .setAttribute('position', new THREE.Float32BufferAttribute([-0.5, -0.4, 0, 0.5, -0.5, 0, 0.1, 0.6, 0], 3))
+    .setAttribute('normal', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 0, 0, 1], 3))
+    .setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0.5, 1], 2));
+  shardGeo.setIndex([0, 1, 2]);
+  const IG = {
+    jar: [lathe([[1, 0], [1, 0.86], [0.75, 1]]), 'glass'],
+    bottle: [lathe([[1, 0], [1, 0.6], [0.4, 0.76], [0.35, 1]]), 'glass'],
+    lid: [cylTop(), 'shiny'],
+    pill: [new THREE.CylinderGeometry(1, 1, 0.8, 5), 'plain'],
+    box: [new THREE.BoxGeometry(1, 1, 1), 'plain'],
+    shard: [shardGeo, 'shard'],
+    can: [cylTop(), 'shiny'],
+  };
+  for (const [k, list] of Object.entries(inst)) {
+    const [geo, mat] = IG[k];
+    for (const [m, c] of list) (parts[mat] || (parts[mat] = [])).push(paint(geo.clone().applyMatrix4(m), c));
+    geo.dispose();
+  }
+
   // ---------- build meshes ----------
   for (const [k, list] of Object.entries(parts)) {
     const mesh = new THREE.Mesh(mergeGeometries(list), MAT[k]);
@@ -477,56 +561,52 @@ export function create(game) {
     group.add(mesh);
     for (const g of list) g.dispose();
   }
-  const lathe = (pts) => new THREE.LatheGeometry(pts.map(([x, y]) => new THREE.Vector2(x, y)), 8);
-  const IG = {
-    jar: [lathe([[0, 0], [0.95, 0], [1, 0.05], [1, 0.85], [0.8, 0.92], [0.75, 1]]), MAT.glass],
-    bottle: [lathe([[0, 0], [0.95, 0], [1, 0.05], [1, 0.6], [0.45, 0.75], [0.35, 0.8], [0.35, 1]]), MAT.glass],
-    lid: [new THREE.CylinderGeometry(1, 1, 1, 8).translate(0, 0.5, 0), MAT.lid],
-    pill: [new THREE.CylinderGeometry(1, 1, 0.8, 6), MAT.pill],
-    box: [new THREE.BoxGeometry(1, 1, 1), MAT.box],
-    shard: [new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([-0.5, -0.4, 0, 0.5, -0.5, 0, 0.1, 0.6, 0], 3)).setAttribute('normal', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 0, 0, 1], 3)), MAT.shard],
-    can: [new THREE.CylinderGeometry(1, 1, 1, 8).translate(0, 0.5, 0), MAT.can],
-  };
-  for (const [k, list] of Object.entries(inst)) {
-    if (!list.length) continue;
-    const [geo, mat] = IG[k];
-    const im = new THREE.InstancedMesh(geo, mat, list.length);
-    list.forEach(([m, c], i) => { im.setMatrixAt(i, m); im.setColorAt(i, c); });
-    im.instanceMatrix.needsUpdate = true;
-    if (im.instanceColor) im.instanceColor.needsUpdate = true;
-    im.computeBoundingSphere();
-    group.add(im);
-  }
 
   // ---------- the medicine case ----------
   const caseMesh = new THREE.Group();
   caseMesh.position.set(CASE.x, CASE.y, CASE.z);
   caseMesh.rotation.y = 0.12;
-  const cb = (mat, w, h, d, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); caseMesh.add(m); };
-  cb(MAT.caseBody, 0.52, 0.18, 0.36, 0, 0.09, 0);
-  cb(MAT.metal, 0.53, 0.012, 0.37, 0, 0.12, 0);
-  cb(MAT.caseRed, 0.2, 0.004, 0.06, 0, 0.182, 0); cb(MAT.caseRed, 0.06, 0.004, 0.2, 0, 0.182, 0);
-  cb(MAT.caseRed, 0.14, 0.04, 0.004, 0, 0.08, 0.181); cb(MAT.caseRed, 0.04, 0.14, 0.004, 0, 0.08, 0.181);
-  cb(MAT.metal, 0.16, 0.025, 0.025, 0, 0.2, 0.0);
-  cb(MAT.metal, 0.03, 0.04, 0.03, -0.17, 0.12, 0.185); cb(MAT.metal, 0.03, 0.04, 0.03, 0.17, 0.12, 0.185);
+  // two draws: the body with its metal fittings (vertex colours), and the pulsing red cross
+  const caseParts = { body: [], red: [] };
+  const caseBodyCol = lin(0xc8c4b8), caseMetalCol = lin(0x55585a);
+  const cb = (k, col, w, h, d, x, y, z) => { const g = new THREE.BoxGeometry(w, h, d).translate(x, y, z); if (col) paint(g, col); caseParts[k].push(g); };
+  cb('body', caseBodyCol, 0.52, 0.18, 0.36, 0, 0.09, 0);
+  cb('body', caseMetalCol, 0.53, 0.012, 0.37, 0, 0.12, 0);
+  cb('red', null, 0.2, 0.004, 0.06, 0, 0.182, 0); cb('red', null, 0.06, 0.004, 0.2, 0, 0.182, 0);
+  cb('red', null, 0.14, 0.04, 0.004, 0, 0.08, 0.181); cb('red', null, 0.04, 0.14, 0.004, 0, 0.08, 0.181);
+  cb('body', caseMetalCol, 0.16, 0.025, 0.025, 0, 0.2, 0.0);
+  cb('body', caseMetalCol, 0.03, 0.04, 0.03, -0.17, 0.12, 0.185); cb('body', caseMetalCol, 0.03, 0.04, 0.03, 0.17, 0.12, 0.185);
+  caseMesh.add(new THREE.Mesh(mergeGeometries(caseParts.body), MAT.caseBody), new THREE.Mesh(mergeGeometries(caseParts.red), MAT.caseRed));
   group.add(caseMesh);
 
-  // ---------- lights (always in the scene; intensity 0 when outside so no shader recompiles) ----------
+  // ---------- bandage ----------
+  const bandMesh = new THREE.Group();
+  {
+    // one draw: roll, pack and its red stripe in vertex colours
+    const roll = paint(new THREE.CylinderGeometry(0.042, 0.042, 0.09, 12).rotateZ(Math.PI / 2).translate(-0.04, 0.042, 0), lin(0xe6e1d2));
+    const pack = paint(new THREE.BoxGeometry(0.1, 0.05, 0.07).rotateY(0.3).translate(0.07, 0.025, 0.01), lin(0xf2efe6));
+    const stripe = paint(new THREE.BoxGeometry(0.03, 0.052, 0.072).rotateY(0.3).translate(0.07, 0.025, 0.01), new THREE.Color(0.75, 0.03, 0.03));
+    bandMesh.add(new THREE.Mesh(mergeGeometries([roll, pack, stripe]), MAT.plain));
+  }
+  group.add(bandMesh);
+
+  // ---------- lights: exactly 2, added once, never removed or hidden (intensity 0 while outside) ----------
+  // winLight is the cold leak through whichever room the camera is in (moved, not swapped);
+  // exitLight is the dying green emergency sign. Shafts, pools, the red cross and the panes are emissive.
+  const WIN = {
+    shop: { p: [0, 2.3, 3.5], I0: 9, d: 12 },
+    store: { p: [1.9, 2.4, -10.0], I0: 2.6, d: 6.5 },
+  };
   const lights = [];
   const addLight = (l, x, y, z, I0) => { l.position.set(O.x + x, y, O.z + z); l.userData.I0 = I0; l.intensity = 0; game.scene.add(l); lights.push(l); return l; };
-  addLight(new THREE.PointLight(0x7088b8, 0, 6, 2), 1.9, 2.4, -10.2, 2.2);   // storeroom high window
-  const spot = addLight(new THREE.SpotLight(0x7f9cc8, 0, 10, 0.55, 0.9, 1.6), -5, 2.6, 4.6, 14);
-  spot.target.position.set(O.x - 4.6, 0, O.z + 1.4); game.scene.add(spot.target);
-
-  // window bounce: cool points just inside each shuttered window + a spot raking each one onto the floor
-  [
-    addLight(new THREE.PointLight(0x8aa4cc, 0, 9, 2), -4.6, 2.0, 3.7, 5.0),
-    addLight(new THREE.PointLight(0x8aa4cc, 0, 9, 2), 4.6, 2.0, 3.7, 5.0),
-  ];
-  const spot2 = addLight(new THREE.SpotLight(0x7f9cc8, 0, 10, 0.55, 0.9, 1.6), 5, 2.6, 4.6, 14);
-  spot2.target.position.set(O.x + 3.6, 0, O.z - 0.2); game.scene.add(spot2.target);
+  const winLight = addLight(new THREE.PointLight(0x8aa4cc, 0, WIN.shop.d, 2), ...WIN.shop.p, WIN.shop.I0);
   const exitLight = addLight(new THREE.PointLight(0x30ff70, 0, 6, 2), 7.55, 2.4, -1, 1.6);
-  const caseLight = addLight(new THREE.PointLight(0xff3020, 0, 1.6, 2), CASE.x, CASE.y + 0.45, CASE.z + 0.15, 0.25);
+  let winRoom = 'shop';
+  const setWinRoom = (r) => {
+    if (r === winRoom) return;
+    winRoom = r; const w = WIN[r];
+    winLight.position.set(O.x + w.p[0], w.p[1], O.z + w.p[2]); winLight.distance = w.d; winLight.userData.I0 = w.I0;
+  };
 
   // dust motes drifting in the shafts
   const NM = 260, mp = new Float32Array(NM * 3), mseed = [];
@@ -580,14 +660,14 @@ export function create(game) {
   };
   game.interactables.push({
     pos: new THREE.Vector3(PHARMACY_DOOR.x, heightAt(PHARMACY_DOOR.x, PHARMACY_DOOR.z) + 1.2, PHARMACY_DOOR.z),
-    radius: 2.5,
+    radius: 3.2,
     label: 'Vstoupit do lékárny — Enter the pharmacy',
     enabled: () => !api.inside,
     use: () => teleport('pharmacy', api.entry.x, api.entry.z, api.entry.yaw),
   });
   game.interactables.push({
     pos: new THREE.Vector3(O.x, 1.2, O.z + 4.7),
-    radius: 1.8,
+    radius: 2.4,
     label: 'Odejít na ulici — Leave to the street',
     enabled: () => api.inside,
     use: () => {
@@ -595,9 +675,9 @@ export function create(game) {
       game.emit?.('noise', { x: PHARMACY_DOOR.x, z: PHARMACY_DOOR.z, radius: 6 });
     },
   });
-  game.interactables.push({
+  const caseIx = {
     pos: new THREE.Vector3(O.x + CASE.x, 1.0, O.z + CASE.z),
-    radius: 2.0,
+    radius: 2.6,
     label: 'Vzít léky — Take the medicine',
     enabled: () => api.inside && !game.state?.hasMedicine,
     use: () => {
@@ -606,7 +686,40 @@ export function create(game) {
       game.audio?.pickup?.();
       game.emit?.('pickup', { item: 'medicine' });
     },
-  });
+  };
+  game.interactables.push(caseIx);
+  let bandageTaken = false;
+  const bandIx = {
+    pos: new THREE.Vector3(O.x + BANDAGES[0].x, 1.0, O.z + BANDAGES[0].z),
+    radius: 2.2,
+    label: 'Obvaz — Bandage (+35)',
+    enabled: () => api.inside && !bandageTaken && game.player?.alive !== false && game.state?.phase !== 'dead' && (game.player?.health ?? 100) < 100,
+    use: () => {
+      bandageTaken = true;
+      bandMesh.visible = false;
+      if (game.player?.heal) game.player.heal(35); else game.audio?.pickup?.();
+      game.emit?.('pickup', { item: 'bandage' });
+    },
+  };
+  game.interactables.push(bandIx);
+
+  // seed-driven placement (re-applied if the seed or trailer phase changes)
+  let placedKey = '';
+  const place = () => {
+    const seed = Math.abs(game.state?.seed | 0) || 1, trailer = game.state?.phase === 'trailer';
+    const ci = trailer ? 0 : seed % 3, bi = Math.floor(seed / 3) % 3;
+    const key = ci + ':' + bi;
+    if (key === placedKey) return;
+    placedKey = key;
+    const c = CASES[ci], b = BANDAGES[bi];
+    caseMesh.position.set(c.x, c.y, c.z); caseMesh.rotation.set(0, c.ry, c.rz, 'YXZ');
+    caseIx.pos.set(O.x + c.x, 1.0, O.z + c.z);
+    bandMesh.position.set(b.x, b.y, b.z); bandMesh.rotation.y = b.ry;
+    bandIx.pos.set(O.x + b.x, 1.0, O.z + b.z);
+    api.caseIndex = ci; api.bandageIndex = bi;
+  };
+  place();
+  api.place = place;
 
   function setInside(v) {
     api.inside = v;
@@ -620,8 +733,11 @@ export function create(game) {
         const v = p.x > 1000;
         if (v !== api.inside) setInside(v);
       }
+      place();
       if (game.state?.hasMedicine && caseMesh.visible) caseMesh.visible = false;
       if (api.inside) {
+        const cp = game.camera?.position || p;
+        if (cp) { const lx = cp.x - O.x, lz = cp.z - O.z; setWinRoom(lz < -5.1 && lx > -4 ? 'store' : 'shop'); }
         const t = game.time?.t || 0, dt = Math.min(game.time?.dt || 1 / 60, 0.1);
         const h = ((game.time?.hour ?? 18.6) % 24 + 24) % 24;
         const dusk = h >= 12 ? Math.min(1, Math.max(0, (20.3 - h) / 1.4)) : h < 7 ? 0 : 1;
@@ -632,9 +748,8 @@ export function create(game) {
         const ex = exitFlicker(dt);
         exitLight.intensity = exitLight.userData.I0 * ex;
         MAT.exit.color.setScalar(0.15 + 0.85 * ex);
-        caseLight.intensity = caseMesh.visible ? caseLight.userData.I0 * (0.7 + 0.3 * Math.sin(t * 2.3)) : 0;
-        MAT.caseRed.emissiveIntensity = 0.55 + 0.35 * Math.sin(t * 2.3);
-        MAT.glow.color.setRGB(0.16, 0.22, 0.33).multiplyScalar(0.35 + 0.9 * win);
+        MAT.caseRed.emissiveIntensity = 0.75 + 0.4 * Math.sin(t * 2.3);
+        MAT.panes.color.setScalar(0.35 + 0.9 * win);   // glow + door pane (their tints are vertex colours)
         MAT.shaft.color.setRGB(0.2, 0.27, 0.4).multiplyScalar(0.12 + 0.88 * win);
         MAT.pool.color.setRGB(0.12, 0.16, 0.24).multiplyScalar(0.25 + 0.75 * win);
         AMB.value.setRGB(0.3, 0.36, 0.48).multiplyScalar(0.75 + 0.25 * win);

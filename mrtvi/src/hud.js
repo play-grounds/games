@@ -49,12 +49,32 @@ const CSS = `
 #hud .noise svg { width: 2.6em; height: 1.8em; overflow: visible; }
 #hud .noise path { fill: none; stroke: #e8e2d6; stroke-width: 1.6; transition: opacity .12s, stroke .2s; }
 #hud .noise.loud path { stroke: #c9573f; }
+#hud .seen { display: flex; align-items: center; gap: .5em; margin-top: .45em; font-size: .72em; min-height: 1.6em; }
+#hud .seen .eye { display: none; align-items: center; gap: .5em; }
+#hud .seen.on .eye { display: flex; }
+#hud .seen .fl { display: none; align-items: center; gap: .3em; opacity: .75; }
+#hud .seen .fl.on { display: flex; }
+#hud .seen .fl svg { width: 1.9em; height: 1.2em; }
+#hud .seen .fl path { stroke: #e8e2d6; fill: none; stroke-width: 1.4; stroke-linecap: round; }
+#hud .seen .fl rect { fill: #e8e2d6; }
+#hud .seen svg { width: 2.6em; height: 1.5em; overflow: visible; }
+#hud .seen path, #hud .seen circle { fill: none; stroke: #e8e2d6; stroke-width: 1.5; stroke-linecap: round; }
+#hud .seen.on { opacity: 1; color: #e0a24a; }
+#hud .seen.on path, #hud .seen.on circle { stroke: #e0a24a; }
+#hud .seen.on circle { fill: #e0a24a; }
+#hud .seen.pulse .eye svg { animation: hudeye .5s ease-out 2; }
+@keyframes hudeye { 0% { transform: scale(1.6); filter: drop-shadow(0 0 6px #e0a24a); } 100% { transform: scale(1); } }
 
 #hud .weap { position: absolute; right: 2.2vw; bottom: 3vh; text-align: right; }
 #hud .weap .wn { font-size: .8em; letter-spacing: .25em; opacity: .75; }
 #hud .weap .am { font-size: 2.2em; font-weight: 700; letter-spacing: .05em; font-variant-numeric: tabular-nums; line-height: 1.05; }
 #hud .weap .am span { font-size: .5em; opacity: .6; font-weight: 400; }
 #hud .weap .am.empty { color: #c9573f; }
+#hud .weap .rs { font-size: .85em; letter-spacing: .14em; font-variant-numeric: tabular-nums; opacity: .85; }
+#hud .weap .rs b { font-size: 1.35em; letter-spacing: .04em; }
+#hud .weap .rs.dry { color: #d0402e; opacity: 1; animation: hudflash .7s steps(2) infinite; }
+#hud .weap .am.dry { color: #d0402e; animation: hudflash .7s steps(2) infinite; }
+@keyframes hudflash { 50% { opacity: .25; } }
 
 #hud .xh { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
 #hud .xh i { position: absolute; width: 3px; height: 3px; margin: -1.5px; background: #e8e2d6; border-radius: 50%;
@@ -71,14 +91,41 @@ const CSS = `
   font-family: inherit; font-weight: 700; background: rgba(0,0,0,.35); }
 
 #hud .dmg { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
-#hud .dmg i { position: absolute; left: -9vmin; top: -30vmin; width: 18vmin; height: 7vmin; opacity: 0;
-  background: radial-gradient(ellipse at 50% 0%, rgba(170,20,10,.85), rgba(120,10,5,.35) 45%, transparent 70%);
-  transform-origin: 9vmin 30vmin; filter: blur(2px); }
+#hud .dmg i { position: absolute; left: -11vmin; top: -24vmin; width: 22vmin; height: 5vmin; opacity: 0;
+  border-top: .9vmin solid rgba(205,35,20,.95); border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+  box-shadow: inset 0 .8vmin 1.2vmin -.4vmin rgba(160,20,10,.6); transform-origin: 11vmin 24vmin;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent);
+          mask-image: linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent); }
+#hud .hm { position: absolute; left: 50%; top: 50%; width: 0; height: 0; opacity: 0; }
+#hud .hm i { position: absolute; left: -1px; top: -10px; width: 2px; height: 6px; background: #f2ece0; box-shadow: 0 0 2px #000; }
+#hud .hm i:nth-child(1) { transform: rotate(45deg) translateY(-3px); transform-origin: 1px 10px; }
+#hud .hm i:nth-child(2) { transform: rotate(135deg) translateY(-3px); transform-origin: 1px 10px; }
+#hud .hm i:nth-child(3) { transform: rotate(225deg) translateY(-3px); transform-origin: 1px 10px; }
+#hud .hm i:nth-child(4) { transform: rotate(315deg) translateY(-3px); transform-origin: 1px 10px; }
+#hud .hm.head i { background: #ff3b24; width: 3px; height: 8px; left: -1.5px; top: -12px; transform-origin: 1.5px 12px; box-shadow: 0 0 4px #ff3b24; }
+#hud .stl { position: absolute; left: 50%; top: calc(50% + 18px); transform: translateX(-50%); white-space: nowrap;
+  font-size: .7em; letter-spacing: .18em; color: #cfd6c4; opacity: 0; transition: opacity .15s; }
+#hud .stl.on { opacity: .85; }
+#hud .stl small { opacity: .6; }
+#hud .seen .dir { display: inline-block; width: 1.2em; height: 1.2em; margin-left: -.2em; transition: transform .08s linear; }
+#hud .seen .dir svg { width: 100%; height: 100%; }
+#hud .seen .dir path { stroke: #e0a24a; stroke-width: 2; fill: none; }
+#hud .tbest { margin-top: 2.4vh; font-size: .82em; letter-spacing: .2em; opacity: .8; font-variant-numeric: tabular-nums; }
+#hud .tbest:empty { display: none; }
 #hud .vig { position: absolute; inset: 0; opacity: 0;
   background: radial-gradient(ellipse at center, transparent 55%, rgba(110,8,4,.55) 100%); transition: opacity .3s; }
 
-#hud .msgs { position: absolute; left: 50%; top: 22vh; transform: translateX(-50%); text-align: center; width: 80vw; }
-#hud .msgs div { margin: .35em 0; letter-spacing: .16em; transition: opacity .6s; font-size: 1.05em; }
+#hud .msgs { position: absolute; left: 50%; top: calc(2vh + 5.6em); transform: translateX(-50%); text-align: center; width: 70vw; }
+#hud .msgs div { margin: .25em 0; letter-spacing: .14em; transition: opacity .6s; font-size: .82em; opacity: .9; }
+
+/* pause */
+#hud .pausescr { pointer-events: auto; cursor: pointer; background: rgba(5,5,7,.72); }
+#hud .pausescr .title { font-size: clamp(48px, 11vw, 160px); }
+#hud .sens { margin-top: 3vh; display: flex; align-items: center; gap: 1em; padding: .6em 1.2em; cursor: default;
+  border: 1px solid rgba(232,226,214,.3); background: rgba(0,0,0,.35); font-size: .85em; letter-spacing: .14em; }
+#hud .sens input { width: min(40vw, 260px); accent-color: #e8e2d6; cursor: pointer; }
+#hud .sens output { min-width: 3em; text-align: right; font-variant-numeric: tabular-nums; }
+#hud .pausescr .ctl { margin-top: 3vh; }
 
 /* screens */
 #hud .scr { background: radial-gradient(ellipse at center, rgba(10,10,12,.55), rgba(5,5,6,.92));
@@ -98,7 +145,7 @@ const CSS = `
 #hud .ctl b { text-align: right; letter-spacing: .1em; }
 #hud .go { margin-top: 4.5vh; font-size: 1.15em; letter-spacing: .3em; animation: hudblink 2.4s ease-in-out infinite; }
 @keyframes hudblink { 50% { opacity: .35; } }
-#hud .stats { margin-top: 3vh; display: flex; gap: 3em; font-size: .9em; letter-spacing: .2em; }
+#hud .stats { margin-top: 3vh; display: flex; flex-wrap: wrap; justify-content: center; gap: 1.2em 2.4em; font-size: .9em; letter-spacing: .2em; }
 #hud .stats b { display: block; font-size: 2em; letter-spacing: .05em; }
 #hud .btn { margin-top: 4vh; padding: .7em 2.2em; font: inherit; letter-spacing: .3em; text-transform: uppercase; cursor: pointer;
   color: #e8e2d6; background: rgba(0,0,0,.4); border: 1px solid rgba(232,226,214,.7); border-radius: 0;
@@ -120,7 +167,9 @@ const HTML = `
   <div class="clock"></div>
   <div class="compass"><div class="tape"></div><div class="mk"><i></i></div><div class="ctr"></div></div>
   <div class="dist"></div>
+  <div class="hm"><i></i><i></i><i></i><i></i></div>
   <div class="xh"><i></i><i class="d d0"></i><i class="d d1"></i><i class="d d2"></i><i class="d d3"></i></div>
+  <div class="stl">Tiše <small>— silent kill</small></div>
   <div class="prompt"><kbd>E</kbd><span></span></div>
   <div class="vitals">
     <div class="vl"><span>Zdraví <small>health</small></span><span class="hpv"></span></div>
@@ -128,8 +177,10 @@ const HTML = `
     <div class="bar st"><b></b></div>
     <div class="noise"><svg viewBox="0 0 26 18"><rect x="0" y="6" width="3" height="6" fill="#e8e2d6"/>
       <path d="M6 5 Q9 9 6 13"/><path d="M11 2.5 Q16 9 11 15.5"/><path d="M16 0 Q23 9 16 18"/></svg><span class="nl">Ticho</span></div>
+    <div class="seen"><span class="eye"><svg viewBox="0 0 26 15"><g class="open"><path d="M1.5 7.5 Q13 -2.5 24.5 7.5 Q13 17.5 1.5 7.5 Z"/><circle cx="13" cy="7.5" r="2.6"/></g></svg><span class="dir"><svg viewBox="0 0 12 12"><path d="M3 7.5 L6 3.5 L9 7.5"/></svg></span><span class="sl">Vidí tě <small>they see you</small></span></span>
+      <span class="fl" title="flashlight"><svg viewBox="0 0 22 12"><rect x="0" y="4" width="8" height="4" rx="1"/><path d="M8 3 L11 2 L11 10 L8 9 Z"/><path d="M13 3 L20 0.5"/><path d="M13 6 L21 6"/><path d="M13 9 L20 11.5"/></svg><small>svítilna</small></span></div>
   </div>
-  <div class="weap"><div class="wn"></div><div class="am"></div></div>
+  <div class="weap"><div class="wn"></div><div class="am"></div><div class="rs"></div></div>
 </div>
 <div class="msgs"></div>
 <div class="layer scr titlescr">
@@ -148,7 +199,21 @@ const HTML = `
     <b>1 / 2 · R</b><span>páčidlo / pistole · nabít <small>crowbar / pistol · reload</small></span>
     <b>E · F</b><span>použít · svítilna <small>use · flashlight</small></span>
   </div>
+  <div class="tbest"></div>
   <div class="go">Klikni pro začátek <small>— click to begin</small></div>
+</div>
+<div class="layer scr pausescr">
+  <div class="title">PAUZA</div>
+  <div class="sub"><small>paused</small></div>
+  <div class="ctl">
+    <b>WASD</b><span>chůze <small>move</small></span>
+    <b>Shift / C</b><span>běh / plížení <small>sprint / crouch</small></span>
+    <b>Myš · LMB</b><span>rozhled · útok <small>look · attack</small></span>
+    <b>1 / 2 · R</b><span>páčidlo / pistole · nabít <small>crowbar / pistol · reload</small></span>
+    <b>E · F</b><span>použít · svítilna <small>use · flashlight</small></span>
+  </div>
+  <label class="sens">Citlivost myši <small>mouse</small><input type="range" min="0.3" max="2.5" step="0.05" value="1"><output>1.00</output></label>
+  <div class="go">Klikni pro pokračování <small>— click to resume</small></div>
 </div>
 <div class="layer scr deadscr">
   <div class="title red">JSI MRTVÝ</div>
@@ -197,9 +262,38 @@ export function create(game) {
     noise: $('.noise'), arcs: [...root.querySelectorAll('.noise path')], nl: $('.noise .nl'),
     wn: $('.weap .wn'), am: $('.weap .am'), dmg: $('.dmg'), vig: $('.vig'), msgs: $('.msgs'),
     dstats: $('.dstats'), wstats: $('.wstats'),
+    pause: $('.pausescr'), sens: $('.sens'), sensIn: $('.sens input'), sensOut: $('.sens output'),
+    seen: $('.seen'), stl: $('.stl'), dir: $('.seen .dir'), tbest: $('.tbest'), fl: $('.seen .fl'), rs: $('.weap .rs'), hm: $('.hm'),
   };
   for (const b of root.querySelectorAll('.btn')) b.addEventListener('click', (e) => { e.stopPropagation(); location.reload(); });
   for (const b of root.querySelectorAll('.btn')) b.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+  // Mouse sensitivity (pause screen). The slider swallows its own events so dragging it
+  // neither resumes the game (main: pointerdown/keydown) nor grabs pointer lock (player: click).
+  const loadNum = (k, d) => { try { const v = parseFloat(localStorage.getItem(k)); return Number.isFinite(v) ? v : d; } catch (e) { return d; } };
+  const showSens = (v) => { el.sensIn.value = String(v); el.sensOut.textContent = (+v).toFixed(2); };
+  const clampSens = (v) => Math.max(0.3, Math.min(2.5, Number.isFinite(+v) && +v > 0 ? +v : 1));
+  const readSens = () => clampSens(loadNum('mrtvi.sens', 1));
+  {
+    // A stored value outside 0.3–2.5 is clamped on read, written back, and pushed to the player.
+    const raw = loadNum('mrtvi.sens', null), v = readSens();
+    showSens(v);
+    if (raw !== null && raw !== v) {
+      try { localStorage.setItem('mrtvi.sens', String(v)); } catch (e) { /* ignore */ }
+      game.emit?.('settings', { sens: v });
+    }
+  }
+  for (const ev of ['pointerdown', 'mousedown', 'mouseup', 'click', 'keydown', 'keyup']) el.sens.addEventListener(ev, (e) => e.stopPropagation());
+  el.sensIn.addEventListener('input', () => {
+    const v = clampSens(el.sensIn.value);
+    showSens(v);
+    try { localStorage.setItem('mrtvi.sens', String(v)); } catch (e) { /* ignore */ }
+    game.emit?.('settings', { sens: v });
+  });
+
+  // Best time per seed.
+  const readBest = () => { try { const o = JSON.parse(localStorage.getItem('mrtvi.best') || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } };
+  const writeBest = (o) => { try { localStorage.setItem('mrtvi.best', JSON.stringify(o)); } catch (e) { /* ignore */ } };
 
   // Compass tape: labels/ticks every 15°, laid out once; we just translate the tape.
   // The tape spans -360..+720 degrees so any heading has coverage either side.
@@ -219,31 +313,34 @@ export function create(game) {
   // Damage arcs: a small pool reused round-robin.
   const arcs = [];
   for (let i = 0; i < 4; i++) { const a = document.createElement('i'); el.dmg.appendChild(a); arcs.push({ a, t: 0, ang: 0, from: null }); }
-  let arcI = 0, vigT = 0;
+  let arcI = 0, vigT = 0, compassW = 0;
+  const ARC_T = 0.75;
 
-  // Toasts.
+  // Toasts. A keyed toast replaces the live one with the same key (chimes never stack).
   const toasts = [];
-  function message(text, secs = 3) {
+  function message(text, secs = 3, key = null) {
     if (!text) return;
+    if (key) for (let i = toasts.length - 1; i >= 0; i--) if (toasts[i].key === key) { toasts[i].d.remove(); toasts.splice(i, 1); }
     const d = document.createElement('div');
     d.innerHTML = String(text).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))
       .replace(/ — (.*)$/, ' <small>— $1</small>');
     el.msgs.appendChild(d);
-    toasts.push({ d, t: secs });
+    toasts.push({ d, t: secs, key });
     while (toasts.length > 4) toasts.shift().d.remove();
   }
 
   // Stats.
-  let killed = 0, startT = null, endT = null;
+  let killed = 0, playT = 0, warnedHour = null, prevHp = null, prevRes = null;
   const P = () => game.player || {};
   const yawOf = () => (Number.isFinite(P().yaw) ? P().yaw : 0);
 
   game.on?.('deadKilled', () => { killed++; });
-  game.on?.('chime', (d) => message(`Orloj odbíjí ${d && Number.isFinite(d.hour) ? (d.hour % 12 || 12) + '× ' : ''}— they are coming`, 5));
+  game.on?.('chime', (d) => message(`Orloj odbíjí ${d && Number.isFinite(d.hour) ? (d.hour % 12 || 12) + '× ' : ''}— they are coming`, 5, 'chime'));
+  // Bandages and rounds are announced from the health/reserve jumps in update().
   game.on?.('pickup', (d) => {
     const it = String(d?.item ?? '');
-    if (/med|lék/i.test(it)) message('Léky v batohu — medicine taken', 4);
-    else if (/ammo|náboj/i.test(it)) message('Náboje — ammo', 2.5);
+    if (/med|lék/i.test(it)) message('Léky v batohu — medicine taken', 4, 'pickup-med');
+    else if (/ammo|náboj|round|bandage|obvaz|heal/i.test(it)) return;
     else message(`Sebráno: ${it} — picked up`, 2.5);
   });
   game.on?.('delivered', () => message('Léky doručeny — delivered', 4));
@@ -251,11 +348,44 @@ export function create(game) {
   game.on?.('playerHurt', (d) => {
     const p = P();
     vigT = Math.min(1, vigT + 0.35 + (d?.dmg || 0) / 60);
-    if (!d?.from || !p.pos) return;
-    const s = arcs[arcI++ % arcs.length];
+    if (!d?.from || !Number.isFinite(d.from.x) || !p.pos) return;
+    // One arc per hit; a repeat hit from the same attacker refreshes its arc instead of stacking.
+    let s = arcs.find((a) => a.t > 0 && a.from && Math.hypot(a.from.x - d.from.x, a.from.z - d.from.z) < 1.5);
+    if (!s) s = arcs[arcI++ % arcs.length];
     s.from = { x: d.from.x, z: d.from.z };
-    s.t = 1.4;
+    s.t = ARC_T;
   });
+
+  // Hit marker: a small X at the crosshair when a shot or swing connects; red for a headshot.
+  let hmT = 0, lastHitRef = P().lastHit, lastMarkAt = -1;
+  function hitMark(head) {
+    const now = performance.now();
+    if (now - lastMarkAt < 40) return;          // event + lastHit change for the same hit
+    lastMarkAt = now;
+    hmT = head ? 0.32 : 0.2;
+    el.hm.classList.toggle('head', !!head);
+    el.hm.style.opacity = '1';
+    try { if (head) (game.audio?.headshot ?? game.audio?.hitMarker)?.call(game.audio); else game.audio?.hitMarker?.(); } catch (e) { /* ignore */ }
+  }
+  const isHead = (h) => !!(P().lastHitWasHead || h?.head || h?.part === 'head');
+  game.on?.('hit', (d) => { lastHitRef = P().lastHit; hitMark(d?.head || d?.part === 'head' || isHead(d)); });
+
+  // Furthest progress along the route (metres of polyline), for the death screen.
+  const RP = (L.ROUTE || []).map(([x, z]) => ({ x, z }));
+  const RCUM = [0];
+  for (let i = 1; i < RP.length; i++) RCUM.push(RCUM[i - 1] + Math.hypot(RP[i].x - RP[i - 1].x, RP[i].z - RP[i - 1].z));
+  const RLEN = RCUM[RCUM.length - 1] || 0;
+  let maxProg = 0;
+  function progressAt(px, pz) {
+    let best = Infinity, at = 0;
+    for (let i = 0; i < RP.length - 1; i++) {
+      const a = RP[i], b = RP[i + 1], ex = b.x - a.x, ez = b.z - a.z, l2 = ex * ex + ez * ez || 1;
+      const t = Math.max(0, Math.min(1, ((px - a.x) * ex + (pz - a.z) * ez) / l2));
+      const d = Math.hypot(a.x + ex * t - px, a.z + ez * t - pz);
+      if (d < best) { best = d; at = RCUM[i] + t * Math.sqrt(l2); }
+    }
+    return best < 30 ? at : null;               // off the route (alleys, interiors): no credit
+  }
 
   // Cached last-written values.
   const last = {};
@@ -264,6 +394,7 @@ export function create(game) {
   const cls = (node, c) => (v) => node.classList.toggle(c, !!v);
 
   let prevStamina = 1, sprintT = 0;
+  const hint = { gun: false, shove: false };
   const fmtT = (s) => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
   function objective() {
@@ -290,24 +421,78 @@ export function create(game) {
     return { at: ROUTE[k], dist };
   }
 
+  // "They see you" means something close is coming: a chaser with line of sight within 25 m.
+  // dead.js may expose seeingNear; otherwise check nearby chasers against the colliders.
+  const SEE_R = 25;
+  // Returns false, or the nearest watcher ({x, z}, or true when its position is unknown).
+  function seenNear(p) {
+    const D = game.dead;
+    if (!D || !(Number(D.seeing) > 0) || !p.pos) return false;
+    const list = D.debug?.near?.(p.pos.x, p.pos.z, SEE_R);
+    if (Number.isFinite(D.seeingNear) && !(D.seeingNear > 0)) return false;
+    if (!list) return Number.isFinite(D.nearest?.(p.pos.x, p.pos.z)) && D.nearest(p.pos.x, p.pos.z) < SEE_R;
+    const CH = D.debug?.STATES?.CHASE;
+    list.sort((a, b) => a.d - b.d);
+    let any = null;
+    for (const d of list) {
+      if (CH !== undefined && d.st !== CH) continue;
+      any = any || d;
+      if (CH !== undefined && d.st !== CH) continue;
+      const ey = (p.pos.y || 0) + 1.6, dx = p.pos.x - d.x, dz = p.pos.z - d.z, len = Math.hypot(dx, dz);
+      if (len < 2) return d;
+      // From the player's eye towards the chaser (the dead may stand against a collider).
+      const ux = -dx / len, uz = -dz / len;
+      const wall = game.collide?.raycast?.({ x: p.pos.x + ux * 0.3, y: ey, z: p.pos.z + uz * 0.3 }, { x: ux, y: 0, z: uz }, len - 1);
+      if (!(wall < len - 1)) return d;
+    }
+    // dead.js trusts its own sight test; point at the nearest chaser if ours disagrees.
+    return Number.isFinite(D.seeingNear) ? (any || true) : false;
+  }
+
   function update(dt) {
     dt = Number.isFinite(dt) ? Math.min(dt, 0.1) : 0;
     const st = game.state || {};
     const phase = st.phase || 'play';
-    const t = game.time?.t ?? 0;
-    if (phase === 'play' && startT === null) startT = t;
-    if ((phase === 'dead' || phase === 'won') && endT === null) endT = t;
+    if (phase === 'play') playT += dt;     // paused time doesn't count
 
     set('phase', phase, (ph) => {
-      el.play.classList.toggle('on', ph === 'play');
+      el.play.classList.toggle('on', ph === 'play' || ph === 'paused');
       el.title.classList.toggle('on', ph === 'title');
+      el.pause.classList.toggle('on', ph === 'paused');
       el.dead.classList.toggle('on', ph === 'dead');
       el.won.classList.toggle('on', ph === 'won');
       el.msgs.style.display = ph === 'play' ? '' : 'none';
+      if (ph === 'play') measure();
+      if (ph === 'paused') showSens(readSens());
+      if (ph === 'title') {
+        const b = readBest(), seed = st.seed;
+        let k = +b[seed] > 0 ? seed : null;
+        if (k === null) for (const s of Object.keys(b)) if (+b[s] > 0 && (k === null || +b[s] < +b[k])) k = s;
+        el.tbest.innerHTML = k === null ? '' : `Nejlepší čas <small>— best:</small> ${fmtT(+b[k])}<small>, seed ${String(k).replace(/[<>&]/g, '')}</small>`;
+      }
       if (ph === 'dead' || ph === 'won') {
         try { document.exitPointerLock?.(); } catch (e) { /* ignore */ }
-        const took = fmtT((endT ?? t) - (startT ?? 0));
-        const html = `<div><b>${took}</b>čas <small>time</small></div><div><b>${killed}</b>mrtvých <small>dead put down</small></div>`;
+        const secs = Math.max(1, Math.round(playT));
+        const seed = st.seed ?? '—';
+        const best = readBest();
+        let rec = false;
+        const prm = game.params;
+        const cheat = !!(prm?.has?.('god') || prm?.has?.('auto'));
+        if (ph === 'won' && st.seed !== undefined && !cheat) {
+          const prev = +best[seed];
+          if (!(prev > 0) || secs < prev) { best[seed] = secs; writeBest(best); rec = true; }
+        }
+        const hpLeft = Math.max(0, Math.round(Number.isFinite(P().health) ? P().health : 0));
+        let bestS = +best[seed] > 0 ? +best[seed] : 0;
+        if (ph === 'won' && (!bestS || secs < bestS)) { bestS = secs; rec = true; }   // a cheat run shows it, never stores it
+        const bestTxt = bestS ? fmtT(bestS) : '—';
+        const far = ph === 'dead' && RLEN > 0
+          ? `<div><b>${Math.round(Math.min(maxProg, RLEN))} m</b>nejdál <small>furthest, of ${Math.round(RLEN)} m</small></div>` : '';
+        const html = far + `<div><b>${fmtT(secs)}</b>čas <small>time</small></div>`
+          + `<div><b>${killed}</b>mrtvých <small>dead put down</small></div>`
+          + `<div><b>${hpLeft}</b>zdraví <small>health left</small></div>`
+          + `<div><b>${String(seed).replace(/[<>&]/g, '')}</b>seed <small>?seed=</small></div>`
+          + `<div><b>${bestTxt}</b>${rec ? 'nový rekord <small>new best</small>' : 'nejlepší <small>best, this seed</small>'}</div>`;
         (ph === 'dead' ? el.dstats : el.wstats).innerHTML = html;
       }
     });
@@ -329,13 +514,48 @@ export function create(game) {
     set('objCz', o.cz, text(el.objCz));
     set('objEn', o.en, text(el.objEn));
 
-    // Clock.
+    // Clock, and a warning ten minutes before the orloj strikes (once per hour).
     const hr = Number.isFinite(game.time?.hour) ? game.time.hour : 18.7;
     const hh = Math.floor(hr) % 24, mm = Math.floor((hr % 1) * 60);
     set('clock', `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`, text(el.clock));
+    if (hr % 1 >= 0.833 && warnedHour !== hh) { warnedHour = hh; message('Za 10 minut odbíjí orloj — the clock strikes in 10 minutes', 5, 'chime'); }
+
+    // Pickups: announce bandage/ammo from the jumps they cause.
+    const hpNow = Number.isFinite(p.health) ? p.health : null;
+    if (hpNow !== null && prevHp !== null && hpNow > prevHp + 0.5) message(`+${Math.round(hpNow - prevHp)} zdraví — health`, 2.5, 'pickup-hp');
+    prevHp = hpNow;
+    const resNow = Number.isFinite(p.reserve) ? p.reserve : null;
+    if (resNow !== null && prevRes !== null && resNow > prevRes) message(`+${resNow - prevRes} nábojů — rounds`, 2.5, 'pickup-ammo');
+    prevRes = resNow;
+
+    // Detection.
+    const watcher = seenNear(p);
+    const near = !!watcher;
+    set('seen', near, (v) => {
+      el.seen.classList.toggle('on', v);
+      if (v) { el.seen.classList.remove('pulse'); void el.seen.offsetWidth; el.seen.classList.add('pulse'); }
+    });
+    if (watcher && typeof watcher === 'object' && p.pos) {
+      const rel = wrap(Math.atan2(watcher.x - p.pos.x, -(watcher.z - p.pos.z)) + yaw);
+      set('dir', Math.round(rel * 30), (v) => { el.dir.style.transform = `rotate(${(v / 30 * 180 / Math.PI).toFixed(0)}deg)`; el.dir.style.visibility = ''; });
+    } else set('dir', 'x', () => { el.dir.style.visibility = 'hidden'; });
+    const hrN = Number.isFinite(game.time?.hour) ? game.time.hour : 18;
+    set('fl', !!p.flashlight && (hrN >= 19 || hrN < 6), cls(el.fl, 'on'));
+
+    // Hit marker: lastHit is replaced on every shot/swing; only connecting ones mark.
+    if (p.lastHit !== lastHitRef) {
+      lastHitRef = p.lastHit;
+      const h = p.lastHit;
+      if (h && (h.id !== undefined || h.melee === true)) hitMark(isHead(h));
+    }
+    if (hmT > 0) { hmT -= dt; el.hm.style.opacity = Math.max(0, Math.min(1, hmT / 0.12)).toFixed(2); }
+
+    // Route progress.
+    if (p.pos && p.pos.x < 1000) { const pr = progressAt(p.pos.x, p.pos.z); if (pr !== null && pr > maxProg) maxProg = pr; }
 
     // Compass. Bearing clockwise from north: forward = (-sin yaw, -cos yaw) → bearing = -yaw.
-    const W = el.compass.clientWidth || 400;
+    if (!compassW) measure();
+    const W = compassW || 400;
     const heading = (((-yaw * 180) / Math.PI) % 360 + 360) % 360;
     set('tape', Math.round(heading * 4), () => { el.tape.style.transform = `translateX(${(W / 2 - (heading + 360) * PXDEG).toFixed(1)}px)`; });
     const inside = !!game.interior?.inside;
@@ -380,9 +600,38 @@ export function create(game) {
     const w = String(p.weapon || 'crowbar');
     const wl = WEAPONS[w] || [w, ''];
     set('wn', w, () => { el.wn.innerHTML = `${wl[0]}${wl[1] ? ` <small>${wl[1]}</small>` : ''}`; });
-    const melee = w === 'crowbar' || !Number.isFinite(p.ammo);
-    const amTxt = melee ? '' : `${p.ammo}<span> / ${Number.isFinite(p.reserve) ? p.reserve : 0}</span>`;
-    set('am', amTxt, (v) => { el.am.innerHTML = v; el.am.classList.toggle('empty', !melee && p.ammo === 0); });
+    const mag = Number.isFinite(p.ammo) ? p.ammo : 0, res = Number.isFinite(p.reserve) ? p.reserve : 0;
+    const hasGun = Number.isFinite(p.ammo);
+    const melee = w === 'crowbar' || !hasGun;
+    const dry = hasGun && mag + res === 0;
+    set('am', `${melee}|${mag}|${dry}`, () => {
+      el.am.innerHTML = melee ? '' : String(mag);
+      el.am.classList.toggle('empty', !melee && mag === 0);
+      el.am.classList.toggle('dry', !melee && dry);
+    });
+    set('rs', `${melee}|${mag}|${res}|${hasGun}`, () => {
+      el.rs.innerHTML = !hasGun ? ''
+        : melee ? `Pistole <b>${mag}</b> + <b>${res}</b> <small>pistol rounds</small>`
+        : `Zásoba <b>${res}</b> <small>reserve</small>${mag === 0 && res > 0 ? ' · <small>R nabít — reload</small>' : ''}`;
+      el.rs.classList.toggle('dry', dry);
+    });
+
+    // Stealth kill: crowbar out and dead.js names an unaware target.
+    let sk = null;
+    try { sk = game.dead?.stealthTarget?.(); } catch (e) { sk = null; }
+    set('stl', w === 'crowbar' && sk !== null && sk !== undefined && sk !== false && sk !== -1, cls(el.stl, 'on'));
+
+    // One-off hints, once per run.
+    if (!hint.gun && w === 'pistol' && p.pos && p.pos.x > 60 && p.pos.x < 1000) {
+      hint.gun = true; message('Výstřel přiláká mrtvé — shots draw the dead', 4, 'hint-gun');
+    }
+    if (!hint.shove && p.sprinting && p.pos) {
+      const CH = game.dead?.debug?.STATES?.CHASE;
+      const ls = game.dead?.debug?.near?.(p.pos.x, p.pos.z, 9) || [];
+      if (ls.filter((d) => CH === undefined || d.st === CH).length >= 3) {
+        hint.shove = true; message('Sprint + úder = odstrčení — swing while sprinting to shove', 5, 'hint-shove');
+      }
+    }
 
     // Prompt.
     const pr = p.prompt ? String(p.prompt) : '';
@@ -400,12 +649,16 @@ export function create(game) {
         const rel = wrap(brg + yaw);
         s.a.style.transform = `rotate(${(rel * 180 / Math.PI).toFixed(1)}deg)`;
       }
-      s.a.style.opacity = Math.max(0, Math.min(1, s.t / 0.8)).toFixed(2);
+      s.a.style.opacity = Math.max(0, Math.min(1, s.t / 0.45)).toFixed(2);
     }
     vigT = Math.max(0, vigT - dt * 0.8);
     const vig = Math.max(vigT, hp < 30 ? (30 - hp) / 60 : 0);
     set('vig', Math.round(vig * 50), (v) => { el.vig.style.opacity = (v / 50).toFixed(2); });
   }
+
+  function measure() { compassW = el.compass.clientWidth || 0; }
+  addEventListener('resize', measure);
+  game.on?.('resize', measure);
 
   update(0);
   return { update, message };

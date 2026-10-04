@@ -127,12 +127,22 @@ export function footstep(ctx, B, out, t, surface = 'cobble', loud = 0.6) {
   const thg = gain(ctx, 0);
   perc(thg.gain, t, 0.003, (surface === 'water' ? 0.4 : surface === 'wood' ? 1.1 : 0.9) * v(), rr(0.07, 0.11));
   chainTo(g, noise(ctx, B.brown, t, 0.2), filt(ctx, 'lowpass', surface === 'wood' ? 280 : rr(170, 260), 1.3), thg);
-  if (surface === 'cobble' || surface === 'glass') {
-    // shoe scuffing grit on stone
+  if (surface === 'cobble' || surface === 'stone' || surface === 'glass') {
+    // shoe scuffing grit on stone ('stone' = smoother slabs, a little brighter)
+    const br = surface === 'stone' ? 1.5 : 1;
     const sg = gain(ctx, 0); const d = rr(0.06, 0.13);
     perc(sg.gain, t + rr(0, 0.015), rr(0.004, 0.012), 0.3 * v(), d);
-    chainTo(g, noise(ctx, B.white, t, d + 0.05), filt(ctx, 'bandpass', rr(900, 2400), 0.9), sg);
-    chainTo(g, noise(ctx, B.white, t, 0.13), filt(ctx, 'bandpass', rr(2500, 4000), 1.5), spikeGain(ctx, t, 0.12, 2 + (J() * 4 | 0), { decay: 0.0015, amp: [0.15, 0.5], t1: 0.7 }));
+    chainTo(g, noise(ctx, B.white, t, d + 0.05), filt(ctx, 'bandpass', rr(900, 2400) * br, 0.9), sg);
+    chainTo(g, noise(ctx, B.white, t, 0.13), filt(ctx, 'bandpass', rr(2500, 4000) * br, 1.5), spikeGain(ctx, t, 0.12, 2 + (J() * 4 | 0), { decay: 0.0015, amp: [0.15, 0.5], t1: 0.7 }));
+  }
+  if (surface === 'tiles') {
+    // hard heel tap on ceramic + a small room slap
+    const f = rr(1800, 2600);
+    const tk = gain(ctx, 2); tk.connect(g);
+    click(ctx, B, tk, t + 0.002, f, 0.5, 0.025);
+    click(ctx, B, g, t + rr(0.012, 0.02), f * rr(0.85, 0.95), 0.12, 0.02);
+    const sl = gain(ctx, 0); perc(sl.gain, t + rr(0.022, 0.03), 0.002, 0.12, 0.05);
+    chainTo(g, noise(ctx, B.white, t + 0.02, 0.1), filt(ctx, 'bandpass', rr(1200, 1800), 1.2), sl);
   }
   if (surface === 'wood') {
     const kg = gain(ctx, 0); perc(kg.gain, t, 0.002, 2.4 * v(), rr(0.12, 0.18));
@@ -172,7 +182,7 @@ export function swing(ctx, B, out, t) {
   bp.frequency.exponentialRampToValueAtTime(rr(1600, 2200), t + 0.12);
   bp.frequency.exponentialRampToValueAtTime(rr(400, 550), t + 0.32);
   const g = gain(ctx, 0);
-  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.9, t + 0.11); g.gain.exponentialRampToValueAtTime(0.001, t + 0.33); g.gain.linearRampToValueAtTime(0, t + 0.34);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1.0, t + 0.11); g.gain.exponentialRampToValueAtTime(0.001, t + 0.33); g.gain.linearRampToValueAtTime(0, t + 0.34);
   const pan = ctx.createStereoPanner(); pan.pan.setValueAtTime(0.6, t); pan.pan.linearRampToValueAtTime(-0.6, t + 0.3);
   chainTo(out, noise(ctx, B.pink, t, 0.36), bp, g, pan);
 }
@@ -191,15 +201,31 @@ export function hitFlesh(ctx, B, out, t) {
 }
 
 export function gunshot(ctx, B, out, t) {
-  const sh = shaper(ctx, 2.5), g = gain(ctx, 0.75); sh.connect(g).connect(out);
-  const cg = gain(ctx, 0); perc(cg.gain, t, 0.0004, 1.0, 0.03);
+  const sh = shaper(ctx, 2.5), g = gain(ctx, 1.0); sh.connect(g).connect(out);
+  const cg = gain(ctx, 0); perc(cg.gain, t, 0.0004, 1.6, 0.03);
   chainTo(sh, noise(ctx, B.white, t, 0.05), filt(ctx, 'highpass', 1800), cg);
   const bg = gain(ctx, 0); perc(bg.gain, t, 0.001, 1.3, 0.24);
   chainTo(sh, noise(ctx, B.pink, t, 0.3), filt(ctx, 'lowpass', 1400, 0.9), bg);
-  const o = osc(ctx, 'sine', 160, t, 0.2); o.frequency.exponentialRampToValueAtTime(45, t + 0.09);
-  const og = gain(ctx, 0); perc(og.gain, t, 0.001, 1.0, 0.15); chainTo(sh, o, og);
+  const o = osc(ctx, 'sine', 160, t, 0.3); o.frequency.exponentialRampToValueAtTime(45, t + 0.09);
+  const og = gain(ctx, 0); perc(og.gain, t, 0.001, 1.0, 0.22); chainTo(sh, o, og);
   const mg = gain(ctx, 0); perc(mg.gain, t + 0.045, 0.0005, 0.25, 0.03);   // slide cycling
   chainTo(g, noise(ctx, B.white, t + 0.04, 0.06), filt(ctx, 'bandpass', 3000, 3), mg);
+}
+
+// Hit confirmation: a tiny dry tick (~3 kHz).
+export function hitMarker(ctx, B, out, t) {
+  const p = rr(0.94, 1.06);                                    // ±6 % pitch so a burst of hits doesn't machine-gun
+  click(ctx, B, out, t, 3000 * p, 0.3, 0.008);
+  const o = osc(ctx, 'sine', 3000 * p, t, 0.06), g = gain(ctx, 0); perc(g.gain, t, 0.0008, 0.5, 0.035); chainTo(out, o, g);
+}
+// Headshot: sharper, brighter tick + a short wet bone crunch underneath.
+export function headshot(ctx, B, out, t) {
+  const p = rr(0.94, 1.06);
+  click(ctx, B, out, t, 4100 * p, 1.0, 0.01);
+  const o = osc(ctx, 'sine', 4100 * p, t, 0.03), g = gain(ctx, 0); perc(g.gain, t, 0.0004, 0.3, 0.008); chainTo(out, o, g);
+  chainTo(out, noise(ctx, B.white, t + 0.006, 0.09), filt(ctx, 'bandpass', rr(800, 1100), 1.4), spikeGain(ctx, t + 0.006, 0.08, 6 + (J() * 4 | 0), { decay: 0.005, amp: [0.5, 1.0] }));
+  const k = osc(ctx, 'sine', 180, t, 0.08); k.frequency.exponentialRampToValueAtTime(70, t + 0.06);
+  const kg = gain(ctx, 0); perc(kg.gain, t + 0.004, 0.001, 0.6, 0.04); chainTo(out, k, kg);
 }
 
 function click(ctx, B, out, t, f, amp, ring = 0.03) {
@@ -279,7 +305,7 @@ export function groan(ctx, B, out, t, o = {}) {
   for (let k = 0; k < E; k++) {
     const u = k / (E - 1);
     sw = clamp(sw + (r() - 0.5) * 0.25, 0.55, 1);
-    ec[k] = sstep(0, 0.12 + 0.1 * (1 - snarl), u) * (1 - sstep(0.62, 1, u)) * sw;
+    ec[k] = sstep(0, snarl ? Math.min(0.12, 0.05 / dur) : 0.22, u) * (1 - sstep(0.62, 1, u)) * sw;   // snarl: full within ~50 ms
   }
   ec[E - 1] = 0;
   breath.gain.setValueCurveAtTime(ec.map((x) => x * breathPeak), t, dur);
@@ -299,6 +325,21 @@ export function groan(ctx, B, out, t, o = {}) {
   const env = gain(ctx, 0); env.gain.setValueCurveAtTime(ec, t, dur);
   chainTo(out, mix, shaper(ctx, 1.8), env, gain(ctx, o.level ?? 0.9));
   return dur;
+}
+
+// A body hitting the ground: heavy low thud, cloth/gear rustle, a small gear knock.
+export function bodyFall(ctx, B, out, t) {
+  const tg = gain(ctx, 0); perc(tg.gain, t, 0.002, 0.9, 0.25);
+  chainTo(out, noise(ctx, B.brown, t, 0.35), filt(ctx, 'lowpass', rr(160, 200), 1.1), gain(ctx, 2.2), tg);
+  const o = osc(ctx, 'sine', rr(70, 85), t, 0.25); o.frequency.exponentialRampToValueAtTime(38, t + 0.15);
+  const og = gain(ctx, 0); perc(og.gain, t, 0.003, 0.5, 0.18); chainTo(out, o, og);
+  const t2 = t + rr(0.09, 0.16), sg = gain(ctx, 0); perc(sg.gain, t2, 0.004, 0.45, 0.12);   // second (limb) impact
+  chainTo(out, noise(ctx, B.brown, t2, 0.2), filt(ctx, 'lowpass', 220), gain(ctx, 1.8), sg);
+  const rg = gain(ctx, 0); rg.gain.setValueAtTime(0, t); rg.gain.linearRampToValueAtTime(0.07, t + 0.02); rg.gain.exponentialRampToValueAtTime(0.001, t + 0.4); rg.gain.linearRampToValueAtTime(0, t + 0.41);
+  chainTo(out, noise(ctx, B.pink, t, 0.45), filt(ctx, 'bandpass', rr(1200, 2200), 0.8), rg);
+  chainTo(out, noise(ctx, B.white, t, 0.4), filt(ctx, 'bandpass', rr(2500, 3500), 1.2), spikeGain(ctx, t, 0.38, 5 + (J() * 5 | 0), { decay: 0.004, amp: [0.04, 0.12], t1: 0.8 }));
+  if (J() < 0.6) click(ctx, B, out, t + rr(0.05, 0.2), rr(1400, 2400), 0.05, 0.04);
+  return 0.6;
 }
 
 export function hurt(ctx, B, out, t) {

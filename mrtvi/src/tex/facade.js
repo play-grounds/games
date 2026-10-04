@@ -5,10 +5,21 @@ import {
   blobPath, stain, crack, streaks, spray, sprayLine, bloodHand, bulletHole,
 } from './paint.js';
 
-const PALETTE = [0xc4a25e, 0xd3c6a2, 0xc28f76, 0xa3ad88, 0x8e9ba6, 0xc19d93, 0xcbb46e, 0xb0aa9c].map(hex);
+const PALETTE = [0xc4a25e, 0xd3c6a2, 0xc28f76, 0xa3ad88, 0x8e9ba6, 0xc19d93, 0xcbb46e, 0xb0aa9c, 0xb7a58a, 0xa8b0a0, 0xc9a78a, 0x9c9fa8].map(hex);
 const SHUTTER = [0x4a5a44, 0x5b4636, 0x3e4a52, 0x6a6a58].map(hex);
 const WORDS = ['MRTVÍ', 'POMOC', 'NEJSOU TU', 'NECHOĎ DÁL', 'ŽIJEME', 'KONEC', 'MRTVÍ', 'HRAD →', 'NEVSTUPOVAT', 'BŮH NÁS OPUSTIL'];
-const SHOPS = ['POTRAVINY', 'TABÁK', 'SMĚNÁRNA', 'KAVÁRNA', 'PIVNICE', 'GRANÁT', 'SUVENÝRY', 'PEKAŘSTVÍ', 'BAR', 'ANTIKVARIÁT'];
+// Shop names (LÉKÁRNA is reserved for the pharmacy). Shuffled once; each façade variant takes
+// a consecutive run, so neighbouring variants never share names and repeats are rare.
+const SHOPS = (() => {
+  const a = ['PEKAŘSTVÍ', 'ŘEZNICTVÍ', 'TRAFIKA', 'U ZLATÉHO TYGRA', 'ČISTÍRNA', 'BAZAR', 'KNIHKUPECTVÍ',
+    'SKLO · PORCELÁN', 'PAPÍRNICTVÍ', 'DROGERIE', 'OPTIKA', 'HODINÁŘSTVÍ', 'VINÁRNA', 'POTRAVINY', 'KAVÁRNA',
+    'ANTIKVARIÁT', 'SMĚNÁRNA', 'GRANÁT', 'TABÁK', 'U DVOU KOČEK', 'SUVENÝRY', 'ZELENINA', 'MLÉKÁRNA',
+    'KLENOTNICTVÍ', 'ŽELEZÁŘSTVÍ', 'KADEŘNICTVÍ', 'OBUV', 'CUKRÁRNA', 'LAHŮDKY', 'ELEKTRO', 'HRAČKY',
+    'KLOBOUČNICTVÍ', 'U MALÍŘŮ', 'MASO · UZENINY', 'FOTO', 'STARÉ KNIHY', 'BAR', 'RYBY', 'KOLONIÁL', 'ČAJOVNA'];
+  const R = rng(4242);
+  for (let i = a.length - 1; i > 0; i--) { const j = (R() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+})();
 const SPRAY_COLS = ['rgba(150,20,16,1)', 'rgba(20,20,20,1)', 'rgba(210,205,190,1)', 'rgba(170,90,30,1)', 'rgba(150,20,16,1)'];
 
 // Storey heights in metres (from ground): plinth, ground floor, string course, piano nobile, band, second, cornice.
@@ -20,6 +31,7 @@ export function paintFacade(seed, bays, ppm = 512 / 12) {
   const c = canvas(W, Hp), g = c.getContext('2d');
   const Y = (m) => Hp - m * ppm;              // metres above ground → canvas y
   const M = (m) => m * ppm;
+  let shopK = seed < 100 ? seed * 3 : 36 + (seed - 100) * 5;   // this variant's run into SHOPS
   const base = mix(PALETTE[seed % PALETTE.length], [150, 145, 135], 0.15 + R() * 0.15);
   const trim = mix(base, [225, 218, 200], 0.45);
   const dark = shade(base, 0.55);
@@ -116,7 +128,7 @@ export function paintFacade(seed, bays, ppm = 512 / 12) {
       if (burnt) scorch.push([cx, y0, ww, wh]);
     }
     // Ground floor.
-    ground(g, cx, M, Y, R, base, trim, b, bays, ppm);
+    ground(g, cx, M, Y, R, base, trim, b, bays, ppm, () => SHOPS[(shopK++) % SHOPS.length]);
   }
 
   // Grime streaks under sills and from the cornice.
@@ -252,7 +264,7 @@ function window_(g, x, y, w, h, state, R, trim, ppm) {
   }
 }
 
-function ground(g, cx, M, Y, R, base, trim, b, bays, ppm) {
+function ground(g, cx, M, Y, R, base, trim, b, bays, ppm, nextShop) {
   const roll = R();
   const type = roll < 0.32 ? 'shutter' : roll < 0.58 ? 'shopBroken' : roll < 0.82 ? 'door' : 'barred';
   if (type === 'shutter' || type === 'shopBroken') {
@@ -263,7 +275,7 @@ function ground(g, cx, M, Y, R, base, trim, b, bays, ppm) {
       g.save(); g.globalAlpha = 0.55 + R() * 0.25;
       g.fillStyle = rgbStr(190, 175, 140); g.font = `700 ${M(0.32)}px "DejaVu Serif", Georgia, serif`;
       g.textAlign = 'center'; g.textBaseline = 'middle';
-      const word = SHOPS[(R() * SHOPS.length) | 0];
+      const word = nextShop();
       g.fillText(word, cx, Y(3.9), w * 0.92);
       g.restore();
     }

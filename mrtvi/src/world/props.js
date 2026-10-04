@@ -2,6 +2,9 @@
 // rubble, dead lamps, paper, luggage, blood, laundry, posters, the castle camp (tents,
 // burning barrels, survivors). Static stuff is batched; fires flicker via InstancedMesh.
 import { Batches } from './geom.js';
+import { makePerson } from './people.js';
+import { buildFlames } from './fire.js';
+import { robedFigure } from './figure.js';
 
 export function buildProps(W, landmarks) {
   const { B, L, H, frame, sub, P, solid, THREE, mats } = W;
@@ -125,6 +128,54 @@ export function buildProps(W, landmarks) {
     solid(x, z, (u1 - u0) / 2, 0.32, F.rot, -10, 100, true);
   }
 
+  // Praga V3S-ish army truck in frame Ft (u = length, cab towards +u); no collider.
+  function armyTruck(Ft) {
+    const ob = (u0, u1, y0, y1, v0, v1, k = 'olive', col = [1.45, 1.45, 1.35]) => B.box(k, Ft, u0, u1, y0, y1, v0, v1, { mw: 1.5, mh: 1.5, col });
+    // Praga V3S-ish army truck: chassis, bonnet + cab, plank bed, canvas tarp on hoops
+    ob(-3.3, 3.3, 0.55, 0.8, -0.9, 0.9, 'metal', [0.8, 0.8, 0.8]);     // chassis
+    ob(2.4, 3.4, 0.8, 1.75, -0.85, 0.85);                             // bonnet
+    ob(3.4, 3.46, 0.85, 1.6, -0.6, 0.6, 'dark', [1, 1, 1]);           // grille
+    ob(1.3, 2.4, 0.8, 2.55, -1.1, 1.1);                               // cab
+    ob(1.32, 2.42, 2.55, 2.65, -1.0, 1.0);                            // cab roof lip
+    ob(2.4, 2.42, 1.75, 2.4, -0.95, 0.95, 'glass', [1, 1, 1]);        // windscreen
+    ob(2.43, 2.45, 1.8, 2.35, -0.03, 0.03, 'olive');                   // windscreen pillar
+    // side windows: someone sleeps in the cab, a candle burns low behind the glass
+    for (const v of [-1.11, 1.11]) ob(1.45, 2.2, 1.7, 2.35, v - 0.01, v + 0.01, 'dimWin', [1, 1, 1]);
+    ob(1.3, 1.32, 1.75, 2.3, -0.8, 0.8, 'dimWin', [0.7, 0.7, 0.7]);    // rear cab window
+    for (const v of [-1.13, 1.13]) ob(1.8, 2.25, 1.4, 1.45, v - 0.02, v + 0.02, 'metal');   // door handles/strip
+    ob(3.4, 3.48, 1.05, 1.25, -0.75, -0.55, 'white', [0.6, 0.6, 0.55]); ob(3.4, 3.48, 1.05, 1.25, 0.55, 0.75, 'white', [0.6, 0.6, 0.55]);   // headlamps
+    for (const v of [-1.25, 1.25]) ob(2.0, 3.3, 0.9, 1.0, v - 0.15, v + 0.15, 'olive', [0.8, 0.8, 0.8]);   // mudguards
+    ob(-3.3, 1.2, 0.8, 1.35, -1.15, 1.15, 'plank', [0.55, 0.6, 0.45]); // bed sides
+    // tarp: a rounded canvas hood over hoops, sagging between them
+    {
+      const n = 7, r = 1.15, yb = 1.35, yh = 1.55, u0 = -3.3, u1 = 1.15;
+      const prof = (i, sag) => { const t = Math.PI * (i / n); return [-Math.cos(t) * r, yb + yh * 0.55 + Math.sin(t) * (yh * 0.65 - sag)]; };
+      const hoops = [u0, -2.2, -1.1, 0.05, u1];
+      for (let h = 0; h < hoops.length - 1; h++) {
+        const ua = hoops[h], ub = hoops[h + 1];
+        for (let i = 0; i < n; i++) {
+          const [va, ya] = prof(i, 0), [vb, yb2] = prof(i + 1, 0), [vc, yc] = prof(i, 0.08), [vd, yd] = prof(i + 1, 0.08);
+          const um = (ua + ub) / 2;
+          B.polyF('tarp', [P(Ft, ua, ya, va), P(Ft, ua, yb2, vb), P(Ft, um, yd, vd), P(Ft, um, yc, vc)], [0, 1, 0].map((x, j) => (j === 1 ? ya - yb : 0) + (j !== 1 ? 0 : 1)), [[ua, ya], [ua, yb2], [um, yd], [um, yc]].map(([a, b2]) => [a / 1.5, b2 / 1.5]), [1, 1, 1]);
+          B.polyF('tarp', [P(Ft, um, yc, vc), P(Ft, um, yd, vd), P(Ft, ub, yb2, vb), P(Ft, ub, ya, va)], [0, 1, 0], [[um, yc], [um, yd], [ub, yb2], [ub, ya]].map(([a, b2]) => [a / 1.5, b2 / 1.5]), [1, 1, 1]);
+        }
+        for (const sv of [-1, 1]) B.polyF('tarp', [P(Ft, ua, 1.35, sv * r), P(Ft, ub, 1.35, sv * r), P(Ft, ub, yb + yh * 0.55, sv * r), P(Ft, ua, yb + yh * 0.55, sv * r)], [0, 0, 0], [[ua / 1.5, 0.9], [ub / 1.5, 0.9], [ub / 1.5, 1.7], [ua / 1.5, 1.7]], [0.95, 0.95, 0.95]);
+      }
+      // end flaps
+      for (const [u, d] of [[u0, -1], [u1, 1]]) {
+        const pts = [P(Ft, u, 1.35, -r), P(Ft, u, 1.35, r)];
+        for (let i = n; i >= 0; i--) { const [v, y] = prof(i, 0); pts.push(P(Ft, u, y, v)); }
+        B.polyF('tarp', pts, [Ft.c * d, 0, -Ft.s * d], pts.map((p, i) => [i * 0.2, 0]), [0.85, 0.85, 0.85]);
+      }
+    }
+    for (const u of [-2.3, -1.2, 2.6]) for (const v of [-1.0, 1.0]) {
+      const sv = Math.sign(v);
+      B.beam('bag', P(Ft, u, 0.5, v + sv * 0.16), P(Ft, u, 0.5, v - sv * 0.16), 0.5, 0.5, { sides: 10, col: [0.55, 0.55, 0.55] });   // tyre (cap outward)
+      B.beam('bag', P(Ft, u, 0.5, v - sv * 0.16), P(Ft, u, 0.5, v + sv * 0.16), 0.5, 0.5, { sides: 10, col: [0.55, 0.55, 0.55] });
+      ob(u - 0.18, u + 0.18, 0.32, 0.68, v + Math.sign(v) * 0.16, v + Math.sign(v) * 0.18, 'metal', [1, 1, 1]);
+    }
+  }
+
   // ---------- rubble ----------
   function rubble(x, z, r, h, o = {}) {
     const y = H(x, z);
@@ -157,8 +208,10 @@ export function buildProps(W, landmarks) {
     B.prism('metal', F, 0, 0, 0.16, 0, 0.9, { sides: 6, r1: 0.1 });
     B.prism('metal', F, 0, 0, 0.08, 0.9, 4.1, { sides: 6, r1: 0.06 });
     B.box('metal', F, -0.05, 0.05, 3.9, 4.0, -0.05, 0.6, {});
-    B.box('glass', F, -0.2, 0.2, 3.55, 3.95, 0.4, 0.8, {});
-    B.spire('metal', F, 0, 0.6, 0.25, 3.95, 4.25, {});
+    B.prism('metal', F, 0, 0.6, 0.08, 3.5, 3.56, { sides: 6, cap: true });
+    B.prism('glass', F, 0, 0.6, 0.09, 3.56, 3.88, { sides: 6, r1: 0.17 });
+    B.prism('metal', F, 0, 0.6, 0.2, 3.88, 3.92, { sides: 6 });
+    B.spire('metal', F, 0, 0.6, 0.15, 3.92, 4.08, { sides: 6 });
     W.lamps.push(new THREE.Vector3(...P(F, 0, 3.7, 0.6)));
     solid(x, z, 0.16, 0.16, 0, -10, 100, true);
   }
@@ -171,39 +224,54 @@ export function buildProps(W, landmarks) {
   }
 
   // ---------- people (survivors) ----------
+  // Survivors: proper low-poly people (people.js), one small mesh each, with idle sway.
+  const CLOTH = {
+    cloth0: [0.3, 0.26, 0.21], cloth1: [0.2, 0.22, 0.26], cloth2: [0.32, 0.31, 0.27], cloth3: [0.3, 0.2, 0.18],
+    cloth4: [0.4, 0.39, 0.35], cloth5: [0.22, 0.24, 0.18], medic: [0.33, 0.32, 0.28], olive: [0.25, 0.27, 0.18], dark: [0.12, 0.11, 0.1], knit: [0.1, 0.11, 0.1],
+  };
+  const people = [];
   function person(F, o = {}) {
-    const coat = o.coat || 'cloth' + Math.floor(R() * 6), pants = o.pants || 'cloth' + Math.floor(R() * 6);
-    const c = [1, 1, 1], S = o.scale ?? 1.06;
-    const bx = (k, u0, u1, y0, y1, v0, v1, col = c) => B.box(k, F, u0 * S, u1 * S, y0 * S, y1 * S, v0 * S, v1 * S, { mw: 0.5, mh: 0.5, col });
-    if (o.sit) {
-      bx('plank', -0.3, 0.3, 0, 0.42, -0.25, 0.25);
-      for (const s of [-1, 1]) {
-        bx(pants, s * 0.11 - 0.07, s * 0.11 + 0.07, 0.42, 0.56, -0.5, 0.05);
-        bx(pants, s * 0.11 - 0.07, s * 0.11 + 0.07, 0, 0.5, -0.56, -0.42);
-      }
-      bx(coat, -0.21, 0.21, 0.5, 1.08, -0.12, 0.14);
-      bx(coat, -0.3, -0.2, 0.62, 1.04, -0.35, 0.05); bx(coat, 0.2, 0.3, 0.62, 1.04, -0.35, 0.05);
-      bx('skin', -0.1, 0.1, 1.12, 1.36, -0.1, 0.1, [0.95, 0.85, 0.8]);
-      bx(coat, -0.12, 0.12, 1.3, 1.42, -0.12, 0.13, [0.6, 0.6, 0.6]);
-    } else {
-      for (const s of [-1, 1]) bx(pants, s * 0.11 - 0.075, s * 0.11 + 0.075, 0, 0.86, -0.09, 0.09);
-      bx('dark', -0.2, -0.03, 0, 0.1, -0.16, 0.1); bx('dark', 0.03, 0.2, 0, 0.1, -0.16, 0.1);
-      bx(coat, -0.24, 0.24, 0.82, 1.47, -0.15, 0.15);
-      bx(coat, -0.27, 0.27, 1.3, 1.47, -0.16, 0.16);                    // shoulders
-      bx(coat, -0.12, 0.12, 1.44, 1.52, -0.12, 0.12, [0.8, 0.8, 0.8]);  // collar
-      if (o.long) bx(coat, -0.25, 0.25, 0.45, 0.85, -0.16, 0.16);
-      bx(coat, -0.36, -0.25, 0.78, 1.44, -0.09, 0.09); bx(coat, 0.25, 0.36, 0.78, 1.44, -0.09, 0.09);
-      bx('dark', -0.245, 0.245, 0.86, 0.92, -0.155, 0.155, [0.6, 0.6, 0.6]);   // belt
-      bx('skin', -0.35, -0.26, 0.66, 0.78, -0.06, 0.06, [0.95, 0.85, 0.8]); bx('skin', 0.26, 0.35, 0.66, 0.78, -0.06, 0.06, [0.95, 0.85, 0.8]);
-      bx('skin', -0.06, 0.06, 1.47, 1.53, -0.05, 0.05, [0.95, 0.85, 0.8]);
-      bx('skin', -0.1, 0.1, 1.53, 1.77, -0.11, 0.1, [0.95, 0.85, 0.8]);
-      bx(o.hat || 'dark', -0.11, 0.11, 1.72, 1.82, -0.12, 0.12, [0.7, 0.7, 0.7]);
-      if (o.rifle) bx('metal', 0.08, 0.14, 0.75, 1.65, 0.14, 0.2);
-      if (o.armband) bx('red', 0.245, 0.37, 1.2, 1.3, -0.1, 0.1);
-      if (o.bag) bx('olive', -0.18, 0.18, 0.95, 1.4, 0.13, 0.3);
-    }
+    const fig = makePerson(THREE, {
+      coat: CLOTH[o.coat] || CLOTH.cloth0, pants: CLOTH[o.pants] || CLOTH.cloth1,
+      scarf: o.scarf || pick([[0.36, 0.26, 0.2], [0.26, 0.28, 0.3], [0.3, 0.12, 0.1], [0.4, 0.36, 0.28]]),
+      long: o.long, sit: o.sit, bag: o.bag, rifle: o.rifle, armband: o.armband, headlamp: o.headlamp, warm: o.warm,
+      hood: o.hood, cap: o.hat ? CLOTH[o.hat] : null, phase: R(),
+      under: o.under || pick([[0.2, 0.22, 0.24], [0.28, 0.24, 0.2], [0.18, 0.2, 0.16], [0.3, 0.29, 0.27], [0.24, 0.13, 0.11]]),
+      hair: o.hair || pick([[0.1, 0.085, 0.07], [0.16, 0.12, 0.08], [0.06, 0.055, 0.05], [0.22, 0.2, 0.18]]),
+      skin: o.skin || pick([[0.35, 0.3, 0.27], [0.33, 0.28, 0.25], [0.38, 0.32, 0.28], [0.28, 0.23, 0.2]]),
+      beard: o.beard ?? R() < 0.3, grey: o.grey, satchel: o.satchel,
+    });
+    fig.position.set(F.ox, F.oy, F.oz);
+    fig.rotation.y = F.rot;
+    if (o.sit) B.box('plank', F, -0.3, 0.3, 0, 0.42, -0.25, 0.25, { mw: 1, mh: 2 });   // crate seat
+    extra.push(fig);
+    people.push(fig);
+    if (o.face) fig.userData.face = { rest: F.rot, yaw: F.rot };
     const [x, , z] = P(F, 0, 0, 0);
     solid(x, z, 0.32, 0.32, 0, -10, 100, true);
+  }
+  {
+    let t = 0;
+    const cp = new THREE.Vector3();
+    W.updaters.push((dt) => {
+      t += dt;
+      W.game.camera?.getWorldPosition(cp);
+      const pp = W.game.player?.pos || cp;
+      for (const f of people) {
+        if (f.position.distanceToSquared(cp) >= 3600) continue;
+        f.userData.animate(t);
+        // the camp's people turn to watch whoever walks in (within 15 m), then back to their work
+        const fc = f.userData.face;
+        if (fc) {
+          const dx = pp.x - f.position.x, dz = pp.z - f.position.z;
+          const want = dx * dx + dz * dz < 225 ? Math.atan2(-dx, -dz) : fc.rest;
+          let dy = want - fc.yaw;
+          dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+          fc.yaw += dy * Math.min(1, dt * 2.2);
+          f.rotation.y = fc.yaw;
+        }
+      }
+    });
   }
 
   // =====================================================================
@@ -241,6 +309,8 @@ export function buildProps(W, landmarks) {
       side = -side;
       const p = at(name, t, side * (S.s.width / 2 - 0.35));
       if (!ownStreetOnly(frame(p.x, 0, p.z, 0), 0.3, 0.3, name)) continue;
+      // never inside / hard against a wrecked car: that left a pocket the dead got stuck in
+      if (W.game.collide.inside?.(p.x, p.z, 0.75, H(p.x, p.z))) continue;
       lampPost(p.x, p.z, { rot: p.rot + (side > 0 ? Math.PI / 2 : -Math.PI / 2), fallen: R() < 0.15 });
     }
   }
@@ -265,7 +335,7 @@ export function buildProps(W, landmarks) {
       const u = (R() - 0.5) * (lot.w - 2.5);
       for (let i = 0; i < np; i++) {
         const uu = u + i * 0.66 + (R() - 0.5) * 0.1, yy = 1.35 + (R() - 0.5) * 0.25;
-        B.quad('poster' + Math.floor(R() * 6), P(F, uu + 0.3, yy, -0.04), P(F, uu - 0.3, yy, -0.04), P(F, uu - 0.3, yy + 0.85, -0.04), P(F, uu + 0.3, yy + 0.85, -0.04), [[1, 0], [0, 0], [0, 1], [1, 1]]);
+        B.quad('poster' + Math.floor(R() * 6), P(F, uu + 0.3, yy, -0.04), P(F, uu - 0.3, yy, -0.04), P(F, uu - 0.3, yy + 0.85, -0.04), P(F, uu + 0.3, yy + 0.85, -0.04), [[0, 0], [1, 0], [1, 1], [0, 1]]);   // u+ is the viewer's left on a front
       }
     }
     if (R() < 0.18) {                                   // blood smear on the wall
@@ -303,43 +373,7 @@ export function buildProps(W, landmarks) {
     // truck on the south side
     const pt = at('karlova', KL - 12.5, p1.w / 2 - 1.3);
     const Ft = streetFrame(pt, 0.05);
-    const ob = (u0, u1, y0, y1, v0, v1, k = 'olive', col) => B.box(k, Ft, u0, u1, y0, y1, v0, v1, { mw: 1.5, mh: 1.5, col });
-    // Praga V3S-ish army truck: chassis, bonnet + cab, plank bed, canvas tarp on hoops
-    ob(-3.3, 3.3, 0.55, 0.8, -0.9, 0.9, 'dark', [1, 1, 1]);            // chassis
-    ob(2.4, 3.4, 0.8, 1.75, -0.85, 0.85);                             // bonnet
-    ob(3.4, 3.46, 0.85, 1.6, -0.6, 0.6, 'dark', [1, 1, 1]);           // grille
-    ob(1.3, 2.4, 0.8, 2.55, -1.1, 1.1);                               // cab
-    ob(1.32, 2.42, 2.55, 2.65, -1.0, 1.0);                            // cab roof lip
-    ob(2.4, 2.42, 1.75, 2.4, -0.95, 0.95, 'glass', [1, 1, 1]);        // windscreen
-    for (const v of [-1.11, 1.11]) ob(1.45, 2.2, 1.7, 2.35, v - 0.01, v + 0.01, 'glass', [1, 1, 1]);
-    for (const v of [-1.25, 1.25]) ob(2.0, 3.3, 0.9, 1.0, v - 0.15, v + 0.15, 'olive', [0.8, 0.8, 0.8]);   // mudguards
-    ob(-3.3, 1.2, 0.8, 1.35, -1.15, 1.15, 'plank', [0.55, 0.6, 0.45]); // bed sides
-    // tarp: a rounded canvas hood over hoops, sagging between them
-    {
-      const n = 7, r = 1.15, yb = 1.35, yh = 1.55, u0 = -3.3, u1 = 1.15;
-      const prof = (i, sag) => { const t = Math.PI * (i / n); return [-Math.cos(t) * r, yb + yh * 0.55 + Math.sin(t) * (yh * 0.65 - sag)]; };
-      const hoops = [u0, -2.2, -1.1, 0.05, u1];
-      for (let h = 0; h < hoops.length - 1; h++) {
-        const ua = hoops[h], ub = hoops[h + 1];
-        for (let i = 0; i < n; i++) {
-          const [va, ya] = prof(i, 0), [vb, yb2] = prof(i + 1, 0), [vc, yc] = prof(i, 0.08), [vd, yd] = prof(i + 1, 0.08);
-          const um = (ua + ub) / 2;
-          B.polyF('tarp', [P(Ft, ua, ya, va), P(Ft, ua, yb2, vb), P(Ft, um, yd, vd), P(Ft, um, yc, vc)], [0, 1, 0].map((x, j) => (j === 1 ? ya - yb : 0) + (j !== 1 ? 0 : 1)), [[ua, ya], [ua, yb2], [um, yd], [um, yc]].map(([a, b2]) => [a / 1.5, b2 / 1.5]), [1, 1, 1]);
-          B.polyF('tarp', [P(Ft, um, yc, vc), P(Ft, um, yd, vd), P(Ft, ub, yb2, vb), P(Ft, ub, ya, va)], [0, 1, 0], [[um, yc], [um, yd], [ub, yb2], [ub, ya]].map(([a, b2]) => [a / 1.5, b2 / 1.5]), [1, 1, 1]);
-        }
-        for (const sv of [-1, 1]) B.polyF('tarp', [P(Ft, ua, 1.35, sv * r), P(Ft, ub, 1.35, sv * r), P(Ft, ub, yb + yh * 0.55, sv * r), P(Ft, ua, yb + yh * 0.55, sv * r)], [0, 0, 0], [[ua / 1.5, 0.9], [ub / 1.5, 0.9], [ub / 1.5, 1.7], [ua / 1.5, 1.7]], [0.95, 0.95, 0.95]);
-      }
-      // end flaps
-      for (const [u, d] of [[u0, -1], [u1, 1]]) {
-        const pts = [P(Ft, u, 1.35, -r), P(Ft, u, 1.35, r)];
-        for (let i = n; i >= 0; i--) { const [v, y] = prof(i, 0); pts.push(P(Ft, u, y, v)); }
-        B.polyF('tarp', pts, [Ft.c * d, 0, -Ft.s * d], pts.map((p, i) => [i * 0.2, 0]), [0.85, 0.85, 0.85]);
-      }
-    }
-    for (const u of [-2.3, -1.2, 2.6]) for (const v of [-1.0, 1.0]) {
-      ob(u - 0.5, u + 0.5, 0, 1.0, v - 0.16, v + 0.16, 'dark', [1, 1, 1]);
-      ob(u - 0.18, u + 0.18, 0.32, 0.68, v + Math.sign(v) * 0.16, v + Math.sign(v) * 0.18, 'metal', [1, 1, 1]);
-    }
+    armyTruck(Ft);
     solid(pt.x, pt.z, 3.3, 1.15, Ft.rot, -10, 100, true);
     // swung-open boom barrier along the south edge
     const pb = at('karlova', KL - 3.5, p1.w / 2 - 0.3);
@@ -376,48 +410,50 @@ export function buildProps(W, landmarks) {
     // Hus memorial: a broad stepped granite plinth, the tall robed figure of Hus and two
     // bronze crowds (the defeated warriors / the exiles) flowing off either side.
     const Fh = frame(O.x + 8, 0, O.z - 14, 0);
-    const PATINA = [0.4, 0.46, 0.41], DARKB = [0.28, 0.32, 0.3];
     B.box('stone', Fh, -6.2, 6.2, 0, 0.35, -3.1, 3.1, { mw: 3, mh: 3, col: [0.5, 0.48, 0.45] });
     B.box('stone', Fh, -5.6, 5.6, 0.35, 0.75, -2.6, 2.6, { mw: 3, mh: 3, col: [0.55, 0.53, 0.5] });
     B.box('stone', Fh, -5.0, 5.0, 0.75, 1.3, -2.1, 2.1, { mw: 3, mh: 3, col: [0.45, 0.43, 0.4] });
     B.box('stone', Fh, -1.2, 1.2, 1.3, 2.4, -1.0, 1.0, { mw: 3, mh: 3, col: [0.5, 0.48, 0.44] });   // rock under Hus
-    const fig = (u, v, y, h, rot, o = {}) => {                      // a robed bronze figure
-      const Ff = sub(Fh, u, 0, v, rot), c = o.col || PATINA, r = o.r || 0.32;
-      if (o.kneel) {
-        B.prism('copper', Ff, 0, 0, r * 1.15, y, y + h * 0.42, { sides: 7, r1: r * 0.8, col: c });
-        B.prism('copper', Ff, 0, -0.05, r * 0.8, y + h * 0.42, y + h * 0.7, { sides: 7, r1: r * 0.55, col: c });
-        B.prism('copper', Ff, 0, -0.1, r * 0.42, y + h * 0.7, y + h * 0.83, { sides: 6, r1: r * 0.32, col: c, cap: true });
-        return;
-      }
-      B.prism('copper', Ff, 0, 0, r * 1.25, y, y + h * 0.55, { sides: 8, r1: r * 0.9, col: c });          // robe
-      B.prism('copper', Ff, 0, 0, r * 0.95, y + h * 0.55, y + h * 0.82, { sides: 8, r1: r * 0.7, col: c }); // chest/shoulders
-      B.prism('copper', Ff, 0, 0.02, r * 0.4, y + h * 0.82, y + h * 0.88, { sides: 6, r1: r * 0.36, col: c });
-      B.dome('copper', Ff, 0, 0.02, r * 0.42, y + h * 0.88, { sides: 7, rings: 3, k: 1.3, col: c });
-      if (o.arm) B.box('copper', sub(Ff, r * 0.85, 0, 0, 0), -0.08, 0.08, y + h * 0.45, y + h * 0.85, -0.08, 0.3, { col: c });
-      if (o.staff) B.box('copper', Ff, r + 0.05, r + 0.13, y, y + h * 1.05, -0.04, 0.04, { col: DARKB });
+    // bronze figures (robe, head, arms): weathered bronze — near-black in the folds, verdigris on
+    // the upward faces with rain streaks (the 'verdigris' shader); the crowds are packed into
+    // two sculpted masses on bronze rock so they read as one group, not a row of pins
+    const fig = (u, v, y, h, rot, o = {}) => {
+      const Ff = sub(Fh, u, 0, v, rot + Math.PI);
+      const k = o.k ?? 1;
+      robedFigure(B, Ff, y, h, { key: 'verdigris', col: [k, k, k], kneel: o.kneel, r: (o.r || 0.32) / 0.32, pose: o.arm ? 'raise' : o.staff ? 'staff' : o.book ? 'book' : 'fold', cowl: o.cowl ?? o.staff, sides: 9, lean: o.lean, bulk: 1.3 });
     };
-    fig(0, 0, 2.4, 4.4, 0, { r: 0.5, arm: true });                    // Hus
+    // bronze "rock" the groups stand on: rough stacked slabs rising towards Hus
     const GR = L.rng(1415);
     for (const sg of [-1, 1]) {
-      for (let i = 0; i < 9; i++) {
-        const u = sg * (1.6 + i * 0.42 + GR() * 0.2), v = (GR() - 0.5) * 2.6;
-        const h = (2.6 - i * 0.15) * (0.85 + GR() * 0.25);
-        fig(u, v, 1.3, h, (GR() - 0.5) * 1.2, { kneel: GR() < 0.3, staff: GR() < 0.25, col: GR() < 0.5 ? PATINA : DARKB, r: 0.26 + GR() * 0.06 });
+      for (let i = 0; i < 6; i++) {
+        const u0 = sg * (1.2 + i * 0.62), hgt = 1.3 + (5 - i) * 0.09 + GR() * 0.12;
+        const Fr = sub(Fh, u0, 0, (GR() - 0.5) * 0.4, (GR() - 0.5) * 0.3);
+        B.box('verdigris', Fr, -0.45, 0.45, 1.3, hgt + 0.25, -1.4 + GR() * 0.3, 1.3 - GR() * 0.3, { col: [0.8, 0.8, 0.8] });
+      }
+    }
+    fig(0, 0, 2.4, 4.6, 0, { r: 0.4, arm: true, cowl: false });       // Hus
+    for (const sg of [-1, 1]) {
+      for (let i = 0; i < 11; i++) {
+        const u = sg * (1.5 + i * 0.34 + GR() * 0.15), v = (GR() - 0.5) * 2.2;
+        const base = 1.3 + (10 - i) * 0.03;
+        const h = (2.7 - i * 0.12) * (0.85 + GR() * 0.2);
+        const lean = sg * (0.05 + GR() * 0.1);
+        fig(u, v, base, h, sg * 0.35 + (GR() - 0.5) * 0.8, { kneel: GR() < 0.3, staff: GR() < 0.2, book: GR() < 0.15, cowl: GR() < 0.5, r: 0.34 + GR() * 0.06, k: 0.8 + GR() * 0.4, lean });
       }
     }
     // a mother and child at the east end, a hooded figure leaning on a pike at the west
-    fig(4.4, -0.4, 1.3, 2.2, 0.4, { r: 0.3 }); fig(4.0, 0.3, 1.3, 1.2, 0.2, { r: 0.18 });
-    fig(-4.5, 0.2, 1.3, 2.4, -0.3, { staff: true, col: DARKB });
+    fig(4.4, -0.4, 1.3, 2.3, 0.4, { r: 0.4, cowl: true }); fig(4.0, 0.3, 1.3, 1.25, 0.2, { r: 0.24 });
+    fig(-4.5, 0.2, 1.3, 2.5, -0.3, { staff: true, r: 0.4, k: 0.8 });
     solid(Fh.ox, Fh.oz, 6.2, 3.1, 0, -10, 100, true);
     // military tents in the south-west quarter
     const tent = (x, z, rot, w, d, h, collapsed) => {
       const F = frame(x, H(x, z), z, rot);
       if (!collapsed) {
-        B.box('canvas', F, -w / 2, w / 2, 0, h * 0.55, -d / 2, d / 2, { mw: 0.5, mh: 0.5, col: [0.55, 0.6, 0.45], skip: 'bottom,top' });
-        B.gable('canvas', F, -w / 2, w / 2, -d / 2, d / 2, h * 0.55, h * 0.45, { over: 0.15, mw: 0.5, mh: 0.5, col: [0.5, 0.55, 0.4], gkey: 'canvas', gmw: 0.5, gcol: [0.5, 0.55, 0.4] });
+        B.box('canvas', F, -w / 2, w / 2, 0, h * 0.55, -d / 2, d / 2, { mw: 2, mh: 2, col: [0.55, 0.6, 0.45], skip: 'bottom,top' });
+        B.gable('canvas', F, -w / 2, w / 2, -d / 2, d / 2, h * 0.55, h * 0.45, { over: 0.15, mw: 2, mh: 2, col: [0.5, 0.55, 0.4], gkey: 'canvas', gmw: 2, gmh: 2, gcol: [0.5, 0.55, 0.4] });
         B.box('dark', F, -0.6, 0.6, 0, 1.5, -d / 2 - 0.02, -d / 2, {});
       } else {
-        B.gable('canvas', F, -w / 2, w / 2, -d / 2, d / 2, 0.1, 0.9, { over: 0.4, mw: 0.5, mh: 0.5, col: [0.45, 0.5, 0.36], gkey: 'canvas', gmw: 0.5, gcol: [0.45, 0.5, 0.36] });
+        B.gable('canvas', F, -w / 2, w / 2, -d / 2, d / 2, 0.1, 0.9, { over: 0.4, mw: 2, mh: 2, col: [0.45, 0.5, 0.36], gkey: 'canvas', gmw: 2, gmh: 2, gcol: [0.45, 0.5, 0.36] });
       }
       solid(x, z, w / 2, d / 2, rot, -10, 100, true);
     };
@@ -428,8 +464,8 @@ export function buildProps(W, landmarks) {
     for (let i = 0; i < 14; i++) {
       const x = O.x - 27 + (i % 7) * 1.0, z = O.z + 8 + Math.floor(i / 7) * 2.4;
       const F = frame(x + (R() - 0.5) * 0.2, 0, z, Math.PI / 2 + (R() - 0.5) * 0.2);
-      B.box('bag', F, -0.95, 0.95, 0, 0.26, -0.3, 0.3, { col: [0.9, 0.9, 0.9] });
-      B.box('bag', F, -0.75, 0.75, 0.26, 0.34, -0.2, 0.2, { col: [0.9, 0.9, 0.9] });
+      B.box('bag', F, -0.95, 0.95, 0, 0.26, -0.3, 0.3, { col: [1.7, 1.75, 1.6] });
+      B.box('bag', F, -0.75, 0.75, 0.26, 0.34, -0.2, 0.2, { col: [1.7, 1.75, 1.6] });
     }
     // ambulance (Avia van): grimy white body with a chamfered roof, red stripe, cab glass,
     // dead blue beacons, split rear doors, mud on the sills
@@ -476,7 +512,7 @@ export function buildProps(W, landmarks) {
   {
     const M = L.MS_SQUARE;
     const tx = M.x - 3, tz = M.z + 13, trot = 0.38;
-    tilted([tx, 0.15, tz], trot, 0.06, 0.02, (BB, F) => tram(BB, F));
+    tilted([tx, 0.02, tz], trot, 0.0, 0.04, (BB, F) => tram(BB, F));   // derailed, leaning a little on its bogies
     solid(tx, tz, 7.4, 1.3, trot, -10, 100, true);
     // rails
     for (const v of [-0.72, 0.72]) {
@@ -515,10 +551,13 @@ export function buildProps(W, landmarks) {
   // Barricades on the route (each leaves ≥ 3 m)
   // =====================================================================
   {
-    // Mostecká: sandbags from the north edge, 3 m long
-    const pm = at('mostecka', 30, -(streets.mostecka.s.width / 2) + 0.05);
+    // Mostecká: sandbags from the south kerb, 2.6 m long. Centred on a 2 m nav-grid cell centre
+    // (x = −81) so the grid sees the wall — at x = −82 it fell between cell centres, the grid
+    // called it open and a bot ground against its end for minutes — and short enough that the
+    // lane past its end clears a 0.35 m player by > 0.4 m.
+    const pm = at('mostecka', 29, -(streets.mostecka.s.width / 2) + 0.05);
     const Fm = streetFrame(pm, Math.PI / 2);
-    sandbags(Fm, -3, 0, 3);
+    sandbags(Fm, -2.6, 0, 3);
     // Nerudova: furniture and planks from the south edge
     const pn = at('nerudova', 68, (streets.nerudova.s.width / 2) - 0.05);
     const Fn = streetFrame(pn, -Math.PI / 2);
@@ -549,16 +588,59 @@ export function buildProps(W, landmarks) {
     const C = L.COURTYARD, top = L.HILL.height;
     const Y = top;
     const fireSpots = [[-300, -32], [-318, 0], [-288, 6], [-326, -40], [-296, -46]];
+    var flameSpots = [];
     // tents
     const tents = [[-328, -48, 0.1], [-318, -48, -0.1], [-306, -50, 0.05], [-288, -50, 0.2], [-330, 8, 0], [-320, 9, 0.1], [-306, 10, -0.1], [-282, -42, 1.5], [-332, -30, 1.6]];
-    for (const [x, z, r] of tents) {
-      const F = frame(x, Y, z, r);
-      const w = 4 + R() * 1.5, d = 3 + R(), h = 2.2 + R() * 0.4;
-      const col = pick([[0.55, 0.6, 0.45], [0.6, 0.55, 0.45], [0.4, 0.45, 0.5], [0.65, 0.62, 0.55]]);
-      B.box('canvas', F, -w / 2, w / 2, 0, h * 0.4, -d / 2, d / 2, { mw: 0.5, mh: 0.5, col, skip: 'bottom,top' });
-      B.gable('canvas', F, -w / 2, w / 2, -d / 2, d / 2, h * 0.4, h * 0.6, { over: 0.2, mw: 0.5, mh: 0.5, col, gkey: 'canvas', gmw: 0.5, gcol: col });
-      B.box('dark', F, -0.5, 0.5, 0, 1.3, -d / 2 - 0.02, -d / 2, {});
+    // Ridge tent of sagging canvas (ridge along local v, door at the −v end): the cloth sags
+    // between the poles and towards the eaves, short walls bulge out, guy lines to pegs.
+    const sagTent = (x, z, r, w, d, h, col) => {
+      const F = frame(x, Y, z, r), he = h * 0.3, NA = 6, NS = 3;
+      const L3 = (b, y, a) => P(F, b, y, a);                       // b across, a along the ridge
+      const dirW = (db, dy, da) => [db * F.c + da * F.s, dy, -db * F.s + da * F.c];
+      const ridge = (t) => h - 0.18 * Math.sin(Math.PI * t);
+      const roof = (t, sN, side) => {
+        const a = -d / 2 + d * t, yr = ridge(t);
+        const sag = 0.12 * Math.sin(Math.PI * sN) * (0.5 + 0.5 * Math.sin(Math.PI * t));
+        return L3(side * (w / 2) * sN, yr + (he - yr) * sN - sag, a);
+      };
+      const slope = Math.hypot(w / 2, h - he);
+      for (const side of [-1, 1]) {
+        for (let i = 0; i < NA; i++) {
+          const t0 = i / NA, t1 = (i + 1) / NA;
+          for (let j = 0; j < NS; j++) {
+            const s0 = j / NS, s1 = (j + 1) / NS;
+            B.polyF('canvas', [roof(t0, s0, side), roof(t1, s0, side), roof(t1, s1, side), roof(t0, s1, side)], dirW(side * (h - he), w / 2, 0),
+              [[t0 * d / 2, s0 * slope / 2], [t1 * d / 2, s0 * slope / 2], [t1 * d / 2, s1 * slope / 2], [t0 * d / 2, s1 * slope / 2]], col);
+          }
+          // wall: from the eave down, bulging a little at mid height
+          const a0 = -d / 2 + d * t0, a1 = -d / 2 + d * t1, bw = side * (w / 2 + 0.06);
+          B.polyF('canvas', [roof(t0, 1, side), roof(t1, 1, side), L3(bw, 0, a1), L3(bw, 0, a0)], dirW(side, 0, 0),
+            [[t0 * d / 2, 0.6], [t1 * d / 2, 0.6], [t1 * d / 2, 0], [t0 * d / 2, 0]], col.map((c) => c * 0.82));
+        }
+        // guy lines + pegs off the eave corners and the middle
+        for (const t of [0, 0.5, 1]) {
+          const a = -d / 2 + d * t, top = roof(t, 1, side), peg = L3(side * (w / 2 + 1.1), 0.02, a);
+          B.beam('wire', top, peg, 0.008, 0.008, { sides: 3 });
+          B.box('plank', frame(peg[0], peg[1] - 0.02, peg[2], r), -0.025, 0.025, 0, 0.18, -0.025, 0.025, { mw: 1, mh: 2 });
+        }
+      }
+      // gable ends; the front one has a dark door slit with the flap tied back
+      for (const e of [-1, 1]) {
+        const a = e * d / 2, ends = [L3(-w / 2 - 0.06, 0, a), L3(w / 2 + 0.06, 0, a), roof(e < 0 ? 0 : 1, 1, 1), roof(e < 0 ? 0 : 1, 0, 1), roof(e < 0 ? 0 : 1, 1, -1)];
+        B.polyF('canvas', ends, dirW(0, 0, e), ends.map((p, i) => [[0, 0], [w / 2, 0], [w / 2, 0.6], [w / 4, h / 2], [0, 0.6]][i]), col.map((c) => c * 0.9));
+        if (e < 0) {
+          B.polyF('dark', [L3(-0.42, 0, a - 0.02), L3(0.42, 0, a - 0.02), L3(0, h * 0.82, a - 0.02)], dirW(0, 0, -1), null);
+          B.polyF('canvas', [L3(0.42, 0, a - 0.03), L3(0.75, 0, a - 0.35), L3(0.2, h * 0.6, a - 0.12), L3(0, h * 0.82, a - 0.03)], dirW(0.3, 0, -1), null, col.map((c) => c * 0.75));
+        }
+      }
+      B.beam('plank', L3(0, 0, -d / 2 - 0.08), L3(0, h + 0.15, -d / 2 - 0.08), 0.035, 0.03, { sides: 4 });   // poles
+      B.beam('plank', L3(0, 0, d / 2 + 0.08), L3(0, h + 0.15, d / 2 + 0.08), 0.035, 0.03, { sides: 4 });
       solid(x, z, w / 2, d / 2, r, -10, 100, true);
+    };
+    for (const [x, z, r] of tents) {
+      const w = 3.4 + R() * 1.2, d = 4 + R() * 1.4, h = 2.1 + R() * 0.4;
+      const col = pick([[0.68, 0.74, 0.56], [0.74, 0.68, 0.56], [0.52, 0.58, 0.64], [0.8, 0.76, 0.68]]);
+      sagTent(x, z, r, w, d, h, col);
     }
     // fires: barrels + one camp fire ring
     for (const [x, z] of fireSpots) {
@@ -566,6 +648,10 @@ export function buildProps(W, landmarks) {
       B.prism('ember', frame(x, Y, z, 0), 0, 0, 0.3, 0.86, 0.9, { sides: 10, cap: true });
       solid(x, z, 0.34, 0.34, 0, -10, 100, true);
       W.fires.push(new THREE.Vector3(x, Y + 1.0, z));
+      flameSpots.push(new THREE.Vector3(x, Y + 0.9, z));
+      // warm pool of firelight on the cobbles
+      const pr = 3.4, pa = R() * 6.28, Fp = frame(x, Y + 0.035, z, pa);
+      B.quad('firePool', P(Fp, -pr, 0, pr), P(Fp, pr, 0, pr), P(Fp, pr, 0, -pr), P(Fp, -pr, 0, -pr), [[0, 0], [1, 0], [1, 1], [0, 1]]);
       // a crate seat or two
       for (let i = 0; i < 2; i++) {
         const a = R() * 6.28, F = frame(x + Math.cos(a) * 1.6, Y, z + Math.sin(a) * 1.6, a);
@@ -587,18 +673,36 @@ export function buildProps(W, landmarks) {
     sandbags(frame(C.x + C.w / 2 - 3, Y, G.z - 9.5, Math.PI / 2), -5, 5, 4);
     sandbags(frame(C.x + C.w / 2 - 3, Y, G.z + 9.5, Math.PI / 2), -5, 5, 4);
     // the survivors
-    person(frame(L.MEDIC.x, Y, L.MEDIC.z, -Math.PI / 2), { coat: 'cloth4', pants: 'cloth1', long: true, armband: true, hat: 'dark' });
+    person(frame(L.MEDIC.x, Y, L.MEDIC.z, -Math.PI / 2), {
+      coat: 'medic', pants: 'cloth1', long: true, armband: true, headlamp: true, scarf: [0.3, 0.15, 0.12],
+      under: [0.15, 0.19, 0.16], hair: [0.07, 0.055, 0.045], hat: 'knit', beard: false, skin: [0.35, 0.3, 0.27], satchel: [0.26, 0.2, 0.13], face: true,
+    });
     B.box('plank', frame(L.MEDIC.x + 1.4, Y, L.MEDIC.z - 1.6, 0.2), -0.9, 0.9, 0.65, 0.75, -0.4, 0.4, { mw: 1, mh: 2, col: [0.8, 0.8, 0.75] });   // field table
     for (const [du, dv] of [[-0.8, -0.35], [0.8, -0.35], [-0.8, 0.35], [0.8, 0.35]]) B.box('metal', frame(L.MEDIC.x + 1.4, Y, L.MEDIC.z - 1.6, 0.2), du - 0.03, du + 0.03, 0, 0.65, dv - 0.03, dv + 0.03, {});
     B.box('white', frame(L.MEDIC.x + 1.2, Y, L.MEDIC.z - 1.6, 0.4), -0.2, 0.2, 0.75, 0.95, -0.15, 0.15, { col: [0.9, 0.9, 0.9] });
     B.box('red', frame(L.MEDIC.x + 1.2, Y, L.MEDIC.z - 1.6, 0.4), -0.03, 0.03, 0.85, 0.96, -0.151, 0.151, {});
-    person(frame(C.x + C.w / 2 - 6, Y, G.z - 6.5, -Math.PI / 2), { coat: 'cloth5', pants: 'cloth5', rifle: true, bag: true, hat: 'olive' });
+    {
+      // storm lantern on the field table, ~2 m from the medic: lit glass, wire guard, cap, handle
+      const Fl = frame(L.MEDIC.x + 1.75, Y + 0.75, L.MEDIC.z - 1.25, 0.3);
+      B.prism('metal', Fl, 0, 0, 0.09, 0, 0.05, { sides: 8, cap: true });
+      B.prism('lantern', Fl, 0, 0, 0.065, 0.05, 0.24, { sides: 8, r1: 0.055 });
+      for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + 0.4; B.beam('metal', P(Fl, Math.cos(a) * 0.08, 0.05, Math.sin(a) * 0.08), P(Fl, Math.cos(a) * 0.07, 0.25, Math.sin(a) * 0.07), 0.006, 0.006, { sides: 3 }); }
+      B.prism('metal', Fl, 0, 0, 0.085, 0.24, 0.29, { sides: 8, r1: 0.04, cap: true });
+      B.beam('metal', P(Fl, -0.07, 0.29, 0), P(Fl, 0, 0.37, 0), 0.006, 0.006, { sides: 3 });
+      B.beam('metal', P(Fl, 0, 0.37, 0), P(Fl, 0.07, 0.29, 0), 0.006, 0.006, { sides: 3 });
+      const f = new THREE.Vector3(...P(Fl, 0, 0.16, 0));
+      f.userData = { kind: 'lantern' };
+      W.fires.push(f);
+      W.lamps.push(f.clone());
+      { const pr = 2.2, Fg = frame(L.MEDIC.x + 1.75, Y + 0.03, L.MEDIC.z - 1.25, 0.7); B.quad('firePool', P(Fg, -pr, 0, pr), P(Fg, pr, 0, pr), P(Fg, pr, 0, -pr), P(Fg, -pr, 0, -pr), [[0, 0], [1, 0], [1, 1], [0, 1]]); }
+    }
+    person(frame(C.x + C.w / 2 - 6, Y, G.z - 6.5, -Math.PI / 2), { coat: 'cloth5', pants: 'cloth5', rifle: true, bag: true, hat: 'olive', face: true });
     person(frame(-288 - 1.5, Y, 6 - 0.8, Math.PI * 0.7), { sit: true, coat: 'cloth3' });
     // red-cross medical tent beside the medic, open towards the gate
     {
       const F = frame(L.MEDIC.x - 9, Y, L.MEDIC.z, -Math.PI / 2), w = 7, d = 5.4, h = 3.4, col = [0.9, 0.88, 0.8];
-      B.box('canvas', F, -w / 2, w / 2, 0, h * 0.5, -d / 2, d / 2, { mw: 0.5, mh: 0.5, col, skip: 'bottom,top,front' });
-      B.gable('canvas', F, -w / 2, w / 2, -d / 2, d / 2, h * 0.5, h * 0.5, { over: 0.25, mw: 0.5, mh: 0.5, col, gkey: 'canvas', gmw: 0.5, gcol: col });
+      B.box('canvas', F, -w / 2, w / 2, 0, h * 0.5, -d / 2, d / 2, { mw: 2, mh: 2, col, skip: 'bottom,top,front' });
+      B.gable('canvas', F, -w / 2, w / 2, -d / 2, d / 2, h * 0.5, h * 0.5, { over: 0.25, mw: 2, mh: 2, col, gkey: 'canvas', gmw: 2, gmh: 2, gcol: col });
       // flaps tied back, red crosses on the roof slopes and the back wall
       for (const sg of [-1, 1]) B.quad('canvas', P(F, sg * w / 2, 0, -d / 2), P(F, sg * (w / 2 + 0.6), 0, -d / 2 - 0.9), P(F, sg * (w / 2 + 0.5), h * 0.5, -d / 2 - 0.7), P(F, sg * w / 2, h * 0.5, -d / 2), null, [0.8, 0.78, 0.7]);
       const cross = (cu, cy, v, n) => {
@@ -626,24 +730,96 @@ export function buildProps(W, landmarks) {
         B.prism('plank', Fp, 0, 0, 0.06, 0, 3.0, { sides: 5, mw: 1, mh: 2 });
         B.box('plank', Fp, -0.04, 0.04, 2.85, 2.92, 0, 0.55, { mw: 1, mh: 2 });
         B.box('wire', Fp, -0.008, 0.008, 2.45, 2.88, 0.5, 0.516, {});
-        B.box('metal', Fp, -0.12, 0.12, 2.42, 2.47, 0.39, 0.63, {});
-        B.box('lantern', Fp, -0.09, 0.09, 2.18, 2.42, 0.42, 0.6, { col: [1, 0.9, 0.7] });
-        B.box('metal', Fp, -0.11, 0.11, 2.14, 2.18, 0.4, 0.62, {});
+        // storm lantern: metal base, lit glass chimney inside a wire guard, conical cap
+        B.prism('metal', Fp, 0, 0.51, 0.1, 2.12, 2.17, { sides: 8, cap: true });
+        B.prism('lantern', Fp, 0, 0.51, 0.085, 2.17, 2.38, { sides: 8, r1: 0.075, col: [1, 0.9, 0.7] });
+        { const pr = 2.6, Fg = frame(x, Y + 0.03, z + 0.51, x * 0.7); B.quad('firePool', P(Fg, -pr, 0, pr), P(Fg, pr, 0, pr), P(Fg, pr, 0, -pr), P(Fg, -pr, 0, -pr), [[0, 0], [1, 0], [1, 1], [0, 1]]); }   // lantern glow on the cobbles
+        for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + 0.4; B.beam('metal', P(Fp, Math.cos(a) * 0.09, 2.17, 0.51 + Math.sin(a) * 0.09), P(Fp, Math.cos(a) * 0.08, 2.39, 0.51 + Math.sin(a) * 0.08), 0.006, 0.006, { sides: 3 }); }
+        B.prism('metal', Fp, 0, 0.51, 0.1, 2.38, 2.45, { sides: 8, r1: 0.05, cap: true });
         W.lamps.push(new THREE.Vector3(x, Y + 2.3, z + 0.51));
-      }
-      for (const [x, z] of [[-309, -9.0], [-300, -27.5]]) {
-        const l = new THREE.PointLight(0xffa452, 3.2, 13, 2);
-        l.position.set(x, Y + 2.2, z + 0.5);
-        l.name = 'world:campLantern';
-        extra.push(l);
-        let t = R() * 10;
-        W.updaters.push((dt) => { t += dt; l.intensity = 3.0 + 0.25 * Math.sin(t * 7.3) + 0.15 * Math.sin(t * 17.1); });
+        // no world lights (CONTRACT light budget): the lantern is emissive and atmos lights the
+        // nearest three entries of world.fires
+        const f = new THREE.Vector3(x, Y + 2.25, z + 0.51);
+        f.userData = { kind: 'lantern' };
+        W.fires.push(f);
       }
     }
     // more survivors: warming hands at fires, a sentry on the wall stairs
-    person(frame(-300 + 1.1, Y, -32 + 0.6, -2.2), { coat: 'cloth0', pants: 'cloth5', hat: 'cloth3' });
-    person(frame(-318 - 1.2, Y, 0 + 0.4, 1.9), { coat: 'cloth2', pants: 'cloth1', long: true });
-    person(frame(-296 + 0.9, Y, -46 - 0.9, -0.8), { coat: 'cloth3', pants: 'cloth4', bag: true, hat: 'olive' });
+    person(frame(-300 + 1.1, Y, -32 + 0.6, -2.2), { coat: 'cloth0', pants: 'cloth5', hat: 'cloth3', warm: true });
+    person(frame(-318 - 1.2, Y, 0 + 0.4, 1.9), { coat: 'cloth2', pants: 'cloth1', long: true, hood: true, warm: true });
+    person(frame(-296 + 0.9, Y, -46 - 0.9, -0.8), { coat: 'cloth3', pants: 'cloth4', bag: true, hat: 'olive', face: true });
+    // ---- a lived-in refuge: tents, crates and windbreaks clustered on the fires, the camp truck,
+    // a fence line closing the camp off from the gate forecourt ----
+    const campTent = (x, z, r, w, d, h, col) => {
+      sagTent(x, z, r, w + 0.2, d + 0.8, h + 0.2, col);
+      B.box('tarp', sub(frame(x, Y, z, r), 0, h * 0.62, 0, 0.3), -w * 0.25, w * 0.15, 0, 0.03, -d * 0.3, 0.1, { col: [0.9, 0.9, 0.9] });   // patch tarp on the roof
+    };
+    const crates = (x, z, r, n) => {
+      const F = frame(x, Y, z, r);
+      for (let i = 0; i < n; i++) {
+        const u = (i % 3) * 0.75 - 0.75, lvl = Math.floor(i / 3), sz = 0.32 + R() * 0.06;
+        const Fc = sub(F, u + (R() - 0.5) * 0.1, lvl * 0.62, (R() - 0.5) * 0.1, (R() - 0.5) * 0.2);
+        B.box('plank', Fc, -sz, sz, 0, 0.6, -0.3, 0.3, { mw: 1, mh: 2, col: pick([[0.85, 0.85, 0.7], [0.7, 0.75, 0.6], [1.0, 0.9, 0.75]]) });
+        B.box('olive', Fc, -sz - 0.01, sz + 0.01, 0.25, 0.33, -0.31, 0.31, { col: [0.8, 0.8, 0.8] });   // strap
+      }
+      solid(x, z, 1.2, 0.4, r, -10, 100, true);
+    };
+    const TENT = [[0.58, 0.62, 0.44], [0.68, 0.62, 0.48], [0.5, 0.55, 0.58], [0.74, 0.7, 0.6]];
+    // fire A (-300,-32): truck as a windbreak, two tents, crates, a plank screen
+    {
+      const Ft = frame(-299, Y, -24.5, 0.05);
+      armyTruck(Ft);
+      solid(-299, -24.5, 3.4, 1.2, 0.05, -10, 100, true);
+      campTent(-306.5, -35.5, 0.35, 3.4, 2.6, 2.0, TENT[0]);
+      campTent(-293, -37.5, -0.5, 3.2, 2.4, 1.9, TENT[2]);
+      crates(-303.5, -28.2, 0.2, 5);
+      plankWall(frame(-296.5, Y, -29.5, Math.PI / 2 - 0.3), -1.4, 1.4, 1.4);
+    }
+    // fire B (-318,0): tents in a horseshoe, sandbag windbreak, a cooking table
+    {
+      campTent(-324.5, -2.5, 1.2, 3.2, 2.5, 1.9, TENT[1]);
+      campTent(-313, 4.5, -2.6, 3.4, 2.6, 2.0, TENT[3]);
+      sandbags(frame(-321.5, Y, 4.6, 0.6), -1.4, 1.4, 2);
+      const Ftb = frame(-314.5, Y, -2.6, 0.4);
+      B.box('plank', Ftb, -0.7, 0.7, 0.72, 0.8, -0.35, 0.35, { mw: 1, mh: 2, col: [0.8, 0.75, 0.65] });
+      for (const [du, dv] of [[-0.6, -0.28], [0.6, -0.28], [-0.6, 0.28], [0.6, 0.28]]) B.box('plank', Ftb, du - 0.03, du + 0.03, 0, 0.72, dv - 0.03, dv + 0.03, { mw: 1, mh: 2 });
+      for (const du of [-0.35, 0.05, 0.4]) B.prism('metal', Ftb, du, (R() - 0.5) * 0.3, 0.1 + R() * 0.05, 0.8, 0.95 + R() * 0.1, { sides: 8, col: [0.8, 0.8, 0.8], cap: true });   // pots
+      solid(-314.5, -2.6, 0.75, 0.4, 0.4, -10, 100, true);
+      crates(-326.5, 3.5, 1.4, 4);
+    }
+    // fire C (-288,6): tents, crate stacks, laundry line between two poles
+    {
+      campTent(-293.5, 10.5, 0.1, 3.4, 2.6, 2.0, TENT[0]);
+      campTent(-282.5, 10.0, -0.2, 3.2, 2.5, 1.9, TENT[2]);
+      crates(-284, 1.5, -0.6, 6);
+      const Fl = frame(-291.5, Y, 2.0, 0.15);
+      for (const u of [-2.4, 2.4]) B.prism('plank', Fl, u, 0, 0.05, 0, 2.1, { sides: 5, mw: 1, mh: 2 });
+      B.box('wire', Fl, -2.4, 2.4, 1.98, 2.0, -0.01, 0.01, {});
+      for (let u = -2.1; u < 2.0; u += 0.65 + R() * 0.3) {
+        const w = 0.35 + R() * 0.3, h = 0.4 + R() * 0.5, k = 'cloth' + Math.floor(R() * 6);
+        B.quad(k, P(Fl, u, 1.98 - h, 0), P(Fl, u + w, 1.98 - h, 0), P(Fl, u + w, 1.98, 0), P(Fl, u, 1.98, 0), [[0, 0], [w / 0.5, 0], [w / 0.5, h / 0.5], [0, h / 0.5]]);
+      }
+      for (const u of [-2.4, 2.4]) { const [x, , z] = P(Fl, u, 0, 0); solid(x, z, 0.08, 0.08, 0, -10, 100, true); }
+    }
+    // fence line across the forecourt side of the camp, closing on the gate sandbags: posts,
+    // two rails, a patchwork of planks and corrugated sheets, barbed wire on top
+    {
+      const fx = C.x + C.w / 2 - 3.5;
+      for (const [z0, z1] of [[C.z - C.d / 2 + 1, G.z - 14.6], [G.z + 14.6, C.z + C.d / 2 - 1]]) {
+        const Ff = frame(fx, Y, (z0 + z1) / 2, Math.PI / 2), half = (z1 - z0) / 2;
+        for (let u = -half; u <= half + 0.01; u += 2.4) B.prism('plank', Ff, u, 0, 0.07, 0, 2.3, { sides: 5, mw: 1, mh: 2, col: [0.8, 0.75, 0.7] });
+        for (const y of [0.5, 1.7]) B.box('plank', Ff, -half, half, y, y + 0.1, -0.08, -0.03, { mw: 1, mh: 2, col: [0.85, 0.8, 0.7] });
+        for (let u = -half; u < half - 0.3;) {
+          const w = 0.9 + R() * 1.6, sheet = R() < 0.45, k = 0.7 + R() * 0.5;
+          const ww = Math.min(w, half - u);
+          if (sheet) B.box('rust', sub(Ff, 0, 0, 0, 0), u, u + ww, 0.1 + R() * 0.15, 1.85 + R() * 0.2, -0.13, -0.1, { mw: 1.5, mh: 1.5, col: [k, k, k] });
+          else for (let pu = u; pu < u + ww - 0.05; pu += 0.2) B.box('plank', Ff, pu, pu + 0.17, 0.05, 1.7 + R() * 0.35, -0.13, -0.1, { mw: 1, mh: 2, col: [k, k * 0.95, k * 0.85] });
+          u += ww + (R() < 0.2 ? 0.25 : 0);
+        }
+        for (let u = -half; u < half; u += 0.3) B.box('wire', sub(Ff, u, 0, 0, (R() - 0.5) * 1.0), -0.17, 0.17, 2.15 + R() * 0.2, 2.17 + R() * 0.2, -0.015, 0.015, {});
+        solid(fx, (z0 + z1) / 2, 0.15, half, 0, -10, 100, true);
+      }
+    }
     // stretchers by the medic
     for (let i = 0; i < 3; i++) {
       const F = frame(L.MEDIC.x - 4 - i * 1.2, Y, L.MEDIC.z - 5, Math.PI / 2);
@@ -666,23 +842,36 @@ export function buildProps(W, landmarks) {
       const x = pz.x + (R() - 0.5) * pz.w, z = pz.z + (R() - 0.5) * pz.d;
       pts.push({ x, z, y: H(x, z) });
     }
+    // litter: a printed sheet from a 2×2 atlas, flat at one end, the other end curled up off the
+    // wet cobbles (two or three facets), sometimes folded
     for (const p of pts) {
-      const s = 0.07 + R() * 0.07, a = R() * 6.28, F = frame(p.x, p.y + 0.012 + R() * 0.01, p.z, a);
-      const k = 0.35 + R() * 0.3;
-      B.quad('paper', P(F, -s, 0, s * 1.4), P(F, s, 0, s * 1.4), P(F, s, 0, -s * 1.4), P(F, -s, 0, -s * 1.4), null, [k, k * 0.98, k * 0.9]);
+      const s = 0.08 + R() * 0.08, a = R() * 6.28, F = frame(p.x, p.y + 0.012 + R() * 0.01, p.z, a);
+      const k = 0.6 + R() * 0.3, col = [k, k * 0.98, k * 0.93];
+      const cu = Math.floor(R() * 2) * 0.5, cv = Math.floor(R() * 2) * 0.5;
+      const L0 = s * 1.4, curl = 0.25 + R() * 0.9, segs = R() < 0.5 ? 2 : 3;
+      // v runs −L0 … +L0; the flat part is −L0 … 0.2·L0, then facets bend up by `curl` each
+      const vs = [-L0, L0 * 0.2], ys = [0, 0];
+      let ang = 0, v = L0 * 0.2, y = 0;
+      const rest = (L0 * 0.8) / segs;
+      for (let i = 0; i < segs; i++) { ang += curl / segs * (1 + i * 0.6); v += Math.cos(ang) * rest; y += Math.sin(ang) * rest; vs.push(v); ys.push(y); }
+      for (let i = 0; i < vs.length - 1; i++) {
+        const t0 = (vs[i] + L0) / (2 * L0) * 0.5 + cv, t1 = Math.min(cv + 0.5, (i === vs.length - 2 ? 0.5 : (vs[i + 1] + L0) / (2 * L0) * 0.5) + cv);
+        B.quad('paper', P(F, -s, ys[i], vs[i]), P(F, s, ys[i], vs[i]), P(F, s, ys[i + 1], vs[i + 1]), P(F, -s, ys[i + 1], vs[i + 1]),
+          [[cu, t0], [cu + 0.5, t0], [cu + 0.5, t1], [cu, t1]], col);
+      }
     }
     // luggage
-    const bagCols = [[0.25, 0.2, 0.18], [0.15, 0.17, 0.22], [0.4, 0.15, 0.12], [0.3, 0.32, 0.28], [0.5, 0.45, 0.38]];
+    const bagCols = [[0.62, 0.46, 0.34], [0.42, 0.46, 0.56], [0.66, 0.3, 0.24], [0.52, 0.55, 0.44], [0.85, 0.78, 0.64]];
     for (let i = 0; i < 90; i++) {
       const p = pts[Math.floor(R() * pts.length)];
       if (p.x < -40 && p.x > -60 && Math.abs(p.z) < 6) continue;
       const F = frame(p.x, p.y, p.z, R() * 6.28);
       const col = pick(bagCols);
       if (R() < 0.7) {
-        B.box('bag', F, -0.34, 0.34, 0, 0.2, -0.24, 0.24, { col });
-        if (R() < 0.3) B.box('bag', sub(F, 0.8, 0, 0.1, 0.4), -0.34, 0.34, 0, 0.1, -0.24, 0.24, { col });
+        B.box('luggage', F, -0.34, 0.34, 0, 0.2, -0.24, 0.24, { col });
+        if (R() < 0.3) B.box('luggage', sub(F, 0.8, 0, 0.1, 0.4), -0.34, 0.34, 0, 0.1, -0.24, 0.24, { col });
       } else {
-        B.box('bag', F, -0.18, 0.18, 0, 0.42, -0.12, 0.12, { col });
+        B.box('luggage', F, -0.18, 0.18, 0, 0.42, -0.12, 0.12, { col });
       }
     }
     // pools and drag marks of blood
@@ -697,31 +886,7 @@ export function buildProps(W, landmarks) {
   // =====================================================================
   // Fire flames (instanced, flicker in update)
   // =====================================================================
-  if (W.fires.length) {
-    const n = W.fires.length;
-    // flames: additive, unfogged, no vertex colours (the cones carry none — that made them black)
-    const fm = (c) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide });
-    const outer = new THREE.InstancedMesh(new THREE.ConeGeometry(0.3, 1.1, 8, 1, true).translate(0, 0.55, 0), fm(0xff7a24), n);
-    const inner = new THREE.InstancedMesh(new THREE.ConeGeometry(0.17, 0.7, 6, 1, true).translate(0, 0.35, 0), fm(0xffd27a), n);
-    outer.renderOrder = inner.renderOrder = 3;
-    outer.name = 'world:flames'; inner.name = 'world:flamesInner';
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
-    let t = 0;
-    const set = () => {
-      for (let i = 0; i < n; i++) {
-        const f = W.fires[i];
-        const k = 0.8 + 0.25 * Math.sin(t * 13 + i * 2.1) + 0.15 * Math.sin(t * 29 + i);
-        p.set(f.x, f.y - 0.12, f.z); q.setFromAxisAngle(UP, t * 2 + i); s.set(1 + 0.1 * Math.sin(t * 17 + i), k, 1);
-        outer.setMatrixAt(i, m.compose(p, q, s));
-        s.set(1, 0.9 + 0.3 * Math.sin(t * 21 + i * 3), 1);
-        inner.setMatrixAt(i, m.compose(p, q, s));
-      }
-      outer.instanceMatrix.needsUpdate = true; inner.instanceMatrix.needsUpdate = true;
-    };
-    set();
-    W.updaters.push((dt) => { t += dt; set(); });
-    extra.push(outer, inner);
-  }
+  if (flameSpots.length) extra.push(...buildFlames(THREE, flameSpots, W.updaters, R));
 
   // ---------- helpers that need their own transforms ----------
   function tilted(pos, rotY, roll, pitch, fn) {
@@ -739,25 +904,58 @@ export function buildProps(W, landmarks) {
   // Tatra T3: rounded red body with a cream belt + skirt, split windows, bogies, roof
   // equipment and a pantograph; scorched and smashed on one side.
   function tram(BB, F) {
-    const cream = [0.86, 0.8, 0.64], red = [0.62, 0.12, 0.1], L2 = 7.0;
+    const cream = [0.68, 0.64, 0.54], red = [0.42, 0.16, 0.13], L2 = 7.0;
     const bx = (k, u0, u1, y0, y1, v0, v1, col) => BB.box(k, F, u0, u1, y0, y1, v0, v1, { mw: 1.5, mh: 1.5, col });
-    // bogies with wheels + skirt
+    // bogies: frame, side bolsters, springs, four spoked wheels each, brake shoes; the skirt
+    // stops above them so the running gear reads under the body
     for (const u of [-4.2, 4.2]) {
-      bx('dark', u - 1.2, u + 1.2, 0.15, 0.55, -0.95, 0.95, [1, 1, 1]);
-      for (const du of [-0.75, 0.75]) for (const v of [-0.78, 0.78]) bx('metal', u + du - 0.35, u + du + 0.35, 0, 0.7, v - 0.06, v + 0.06, [0.8, 0.8, 0.8]);
+      bx('dark', u - 1.15, u + 1.15, 0.3, 0.5, -0.7, 0.7, [1.3, 1.3, 1.3]);
+      for (const v of [-0.86, 0.86]) {
+        bx('metal', u - 1.2, u + 1.2, 0.28, 0.48, v - 0.05, v + 0.05, [0.7, 0.68, 0.66]);      // side frame
+        for (const du of [-0.3, 0.3]) BB.beam('metal', P(F, u + du, 0.48, v), P(F, u + du, 0.66, v), 0.07, 0.07, { sides: 6, col: [0.5, 0.48, 0.46] });   // springs
+        for (const du of [-0.75, 0.75]) {
+          const vw = v + Math.sign(v) * 0.07;
+          BB.beam('metal', P(F, u + du, 0.33, vw - 0.06), P(F, u + du, 0.33, vw + 0.06), 0.33, 0.33, { sides: 12, col: [0.75, 0.72, 0.7] });     // wheel
+          BB.beam('rust', P(F, u + du, 0.33, vw + 0.06), P(F, u + du, 0.33, vw + 0.1), 0.12, 0.1, { sides: 8, col: [0.9, 0.9, 0.9] });     // hub
+          bx('rust', u + du + Math.sign(du) * 0.32, u + du + Math.sign(du) * 0.4, 0.15, 0.5, vw - 0.05, vw + 0.05, [0.8, 0.8, 0.8]);       // brake shoe
+        }
+      }
     }
-    bx('paint', -L2 + 0.4, L2 - 0.4, 0.5, 0.85, -1.2, 1.2, cream);                 // cream skirt
+    bx('dark', -L2 + 0.2, L2 - 0.2, 0.62, 0.72, -1.05, 1.05, [1.2, 1.2, 1.2]);      // underframe: body sits on it
+    bx('paint', -L2 + 0.4, L2 - 0.4, 0.66, 0.88, -1.2, 1.2, cream.map((c) => c * 0.75));   // short cream skirt, mud-darkened
+    // skirt cut-outs over the wheels: dark wheel arches
+    for (const u of [-4.2, 4.2]) for (const sv of [-1, 1]) bx('dark', u - 1.3, u + 1.3, 0.66, 0.8, sv * 1.2 - 0.02, sv * 1.2 + 0.02, [1, 1, 1]);
+    // boarding steps under the doors (kerb side)
+    for (const u of [-5.2, -0.4, 4.6]) {
+      bx('metal', u - 0.62, u + 0.62, 0.42, 0.48, 1.05, 1.42, [0.8, 0.8, 0.8]);
+      bx('metal', u - 0.62, u + 0.62, 0.62, 0.66, 1.2, 1.3, [0.7, 0.7, 0.7]);
+    }
     bx('paint', -L2, L2, 0.85, 1.35, -1.25, 1.25, red);                              // lower body
     bx('paint', -L2, L2, 1.35, 1.48, -1.27, 1.27, cream);                            // belt line
     bx('dark', -L2 + 0.25, L2 - 0.25, 1.48, 2.42, -1.21, 1.21, [1, 1, 1]);          // glazing band
-    // window pillars: split upper/lower panes
-    for (let u = -L2 + 0.3; u <= L2 - 0.3; u += 1.12) bx('paint', u - 0.07, u + 0.07, 1.48, 2.42, -1.25, 1.25, red);
+    // window pillars: split upper/lower panes, rubber-sealed aluminium frames, a few panes
+    // left with dull grey glass (reflecting the sky) between the dark broken ones
+    for (let u = -L2 + 0.3; u <= L2 - 0.3; u += 1.12) bx('paint', u - 0.08, u + 0.08, 1.48, 2.42, -1.26, 1.26, red);
     bx('paint', -L2 + 0.25, L2 - 0.25, 2.12, 2.17, -1.235, 1.235, red);             // transom bar
+    for (let u = -L2 + 0.3; u < L2 - 0.4; u += 1.12) {
+      for (const sv of [-1, 1]) {
+        const vv = sv * 1.245;
+        for (const [y0, y1] of [[1.5, 1.54], [2.08, 2.12], [2.17, 2.2], [2.37, 2.41]]) bx('metal', u + 0.08, u + 1.04, y0, y1, vv - 0.012, vv + 0.012, [1.5, 1.5, 1.45]);
+        for (const uu of [u + 0.08, u + 1.0]) bx('metal', uu, uu + 0.04, 1.5, 2.41, vv - 0.012, vv + 0.012, [1.5, 1.5, 1.45]);
+        if (R() < 0.45) bx('glass', u + 0.13, u + 0.99, 1.55, 2.07, vv - 0.006, vv + 0.006, [2.6, 2.7, 2.9]);
+      }
+    }
+    // grime: rust runs under the windows and a mud band along the bottom of the red body
+    for (let u = -L2 + 0.6; u < L2 - 0.4; u += 0.55 + R() * 0.7) {
+      for (const sv of [-1, 1]) bx('rust', u, u + 0.05 + R() * 0.07, 0.95 + R() * 0.2, 1.35, sv * 1.262 - 0.004, sv * 1.262 + 0.004, [0.7, 0.55, 0.45]);
+    }
+    for (const sv of [-1, 1]) bx('paint', -L2, L2, 0.85, 1.0, sv * 1.258 - 0.004, sv * 1.258 + 0.004, [0.2, 0.15, 0.12]);
+    // fleet number + headlamps
+    for (const sg of [-1, 1]) for (const sv of [-0.45, 0.45]) bx('glass', sg > 0 ? L2 + 0.5 : -L2 - 0.56, sg > 0 ? L2 + 0.56 : -L2 - 0.5, 0.95, 1.12, sv - 0.1, sv + 0.1, [3, 2.8, 2.4]);
     bx('paint', -L2, L2, 2.42, 2.75, -1.25, 1.25, red);                              // cant rail
     // rounded roof: three stepped slabs + roof equipment
     bx('paint', -L2 + 0.1, L2 - 0.1, 2.75, 2.88, -1.12, 1.12, cream);
     bx('paint', -L2 + 0.3, L2 - 0.3, 2.88, 2.97, -0.85, 0.85, cream);
-    bx('metal', -1.6, 1.6, 2.97, 3.25, -0.55, 0.55, [0.9, 0.9, 0.9]);
     // tapered ends (T3 nose): two angled facets per end
     for (const sg of [-1, 1]) {
       const u0 = sg * L2, u1 = sg * (L2 + 0.55);
@@ -772,13 +970,18 @@ export function buildProps(W, landmarks) {
       bx('glass', sg > 0 ? L2 + 0.56 : -L2 - 0.6, sg > 0 ? L2 + 0.6 : -L2 - 0.56, 2.48, 2.7, -0.4, 0.4, [1.6, 1.4, 0.9]);   // route box
       bx('metal', sg > 0 ? L2 + 0.5 : -L2 - 0.75, sg > 0 ? L2 + 0.75 : -L2 - 0.5, 0.45, 0.62, -0.9, 0.9, [1, 1, 1]);      // coupler bumper
     }
-    // pantograph: base, lower arms, upper arms, collector shoe
-    bx('metal', -0.5, 0.5, 3.25, 3.35, -0.45, 0.45, [1, 1, 1]);
-    for (const v of [-0.3, 0.3]) {
-      BB.polyF('metal', [P(F, -0.4, 3.35, v - 0.03), P(F, -0.4, 3.35, v + 0.03), P(F, 0.5, 4.0, v + 0.03), P(F, 0.5, 4.0, v - 0.03)], [0, 1, 0], null, [1, 1, 1]);
-      BB.polyF('metal', [P(F, 0.5, 4.0, v - 0.03), P(F, 0.5, 4.0, v + 0.03), P(F, -0.2, 4.55, v + 0.03), P(F, -0.2, 4.55, v - 0.03)], [0, 1, 0], null, [1, 1, 1]);
+    // pantograph: insulators + base frame, diamond of tubular arms, collector bow with horns
+    for (const [du, dv] of [[-0.4, -0.35], [0.4, -0.35], [-0.4, 0.35], [0.4, 0.35]]) BB.beam('white', P(F, du, 3.25, dv), P(F, du, 3.38, dv), 0.05, 0.04, { sides: 6, col: [0.6, 0.5, 0.45] });
+    bx('metal', -0.55, 0.55, 3.38, 3.46, -0.45, 0.45, [1, 1, 1]);
+    for (const v of [-0.32, 0.32]) {
+      BB.beam('metal', P(F, -0.45, 3.46, v), P(F, 0.45, 4.05, v * 0.5), 0.035, 0.03, { sides: 5 });
+      BB.beam('metal', P(F, 0.45, 4.05, v * 0.5), P(F, -0.15, 4.62, v * 0.2), 0.03, 0.025, { sides: 5 });
     }
-    bx('metal', -0.3, -0.1, 4.55, 4.62, -0.8, 0.8, [1, 1, 1]);
+    BB.beam('metal', P(F, 0.45, 4.05, -0.16), P(F, 0.45, 4.05, 0.16), 0.03, 0.03, { sides: 5 });
+    BB.beam('metal', P(F, -0.15, 4.62, -0.85), P(F, -0.15, 4.62, 0.85), 0.04, 0.04, { sides: 6, col: [0.7, 0.7, 0.7] });     // bow
+    for (const sv of [-1, 1]) BB.beam('metal', P(F, -0.15, 4.62, sv * 0.85), P(F, -0.15, 4.45, sv * 1.05), 0.03, 0.02, { sides: 5 });   // horns
+    // roof: resistor boxes and a ventilator either side of the pantograph
+    for (const u of [-3.5, 3.0]) { bx('metal', u - 1.0, u + 1.0, 2.97, 3.2, -0.5, 0.5, [0.75, 0.75, 0.72]); bx('dark', u - 0.9, u + 0.9, 3.2, 3.22, -0.45, 0.45, [1.4, 1.4, 1.4]); }
     // doors (three, dark) on the kerb side
     for (const u of [-5.2, -0.4, 4.6]) bx('dark', u - 0.6, u + 0.6, 0.6, 2.4, 1.24, 1.27, [1, 1, 1]);
     // scorch + smashed windows on the far side
@@ -786,4 +989,3 @@ export function buildProps(W, landmarks) {
   }
 }
 
-const UP = { x: 0, y: 1, z: 0, isVector3: true };

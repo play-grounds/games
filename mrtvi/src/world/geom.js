@@ -15,9 +15,19 @@ export function P(F, u, y, v) {
 }
 
 export class Batches {
-  // chunked: split each material into x-bands (Celetná / OTS / Karlova / river / Malá Strana /
-  // Nerudova / castle) so frustum culling can skip the parts of the city behind the camera.
-  constructor(chunked = false) { this.map = new Map(); this.chunked = chunked; }
+  // chunked: split each material into ~64 m tiles (by polygon centroid) so frustum and fog-distance
+  // culling can skip most of the city; polygons longer than a tile go to one '#big' bucket per
+  // material. `detail` marks small props (key suffix '~d') so they can be culled sooner.
+  constructor(chunked = false) { this.map = new Map(); this.chunked = chunked; this.detail = false; }
+  bucket(key, pts) {
+    if (!this.chunked) return key;
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const p of pts) { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[2] < z0) z0 = p[2]; if (p[2] > z1) z1 = p[2]; }
+    const d = this.detail ? '~d' : '';
+    const T = this.detail ? TILE * 2 : TILE;      // small props: fewer, coarser buckets (draw calls)
+    if (x1 - x0 > TILE || z1 - z0 > TILE) return key + d + '#big';
+    return key + d + '#' + Math.floor(((x0 + x1) / 2 + 2000) / T) + ',' + Math.floor(((z0 + z1) / 2 + 2000) / T);
+  }
   get(key) {
     let b = this.map.get(key);
     if (!b) this.map.set(key, (b = { p: [], n: [], uv: [], c: [], tris: 0 }));
@@ -26,7 +36,8 @@ export class Batches {
 
   // Raw polygon (convex, CCW seen from the front), flat normal.
   poly(key, pts, uvs, col = WHITE) {
-    const b = this.get(this.chunked ? key + '#' + chunkOf(pts[0][0]) : key);
+    if (this.remap) [key, uvs] = this.remap(key, uvs);
+    const b = this.get(this.bucket(key, pts));
     const [a, bb, c] = pts;
     let nx = (bb[1] - a[1]) * (c[2] - a[2]) - (bb[2] - a[2]) * (c[1] - a[1]);
     let ny = (bb[2] - a[2]) * (c[0] - a[0]) - (bb[0] - a[0]) * (c[2] - a[2]);
@@ -147,6 +158,49 @@ export class Batches {
     }
   }
 
+  // Surface of revolution around (cu, cv): prof = [[r, y], ...] bottom to top. opt.sz squashes
+  // the depth (v) axis, opt.lean shifts each ring along v by lean·(y − y0).
+  lathe(key, F, cu, cv, prof, opt = {}) {
+    const n = opt.sides || 9, col = opt.col || WHITE, sz = opt.sz ?? 1, m = opt.mw || 3, lean = opt.lean || 0, y0 = prof[0][1];
+    const pt = (j, i) => {
+      const [r, y] = prof[j], t = (i / n) * Math.PI * 2;
+      return P(F, cu + Math.cos(t) * r, y, cv + Math.sin(t) * r * sz + lean * (y - y0));
+    };
+    for (let j = 0; j < prof.length - 1; j++) {
+      for (let i = 0; i < n; i++) {
+        const uv = [[i / n * 2, prof[j][1] / m], [(i + 1) / n * 2, prof[j][1] / m], [(i + 1) / n * 2, prof[j + 1][1] / m], [i / n * 2, prof[j + 1][1] / m]];
+        if (prof[j + 1][0] < 1e-4) this.poly(key, [pt(j, i + 1), pt(j, i), pt(j + 1, i)], uv, col);
+        else if (prof[j][0] < 1e-4) this.poly(key, [pt(j, i), pt(j + 1, i), pt(j + 1, i + 1)], uv, col);
+        else this.quad(key, pt(j, i + 1), pt(j, i), pt(j + 1, i), pt(j + 1, i + 1), uv, col);
+      }
+    }
+  }
+  // A tapered n-sided beam between world points a and b (radii r0 at a, r1 at b), capped at b.
+  beam(key, a, b, r0, r1 = r0, opt = {}) {
+    const n = opt.sides || 5, col = opt.col || WHITE;
+    const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], L = Math.hypot(...d);
+    d[0] /= L; d[1] /= L; d[2] /= L;
+    const up = Math.abs(d[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+    let e1 = [d[1] * up[2] - d[2] * up[1], d[2] * up[0] - d[0] * up[2], d[0] * up[1] - d[1] * up[0]];
+    const l1 = Math.hypot(...e1); e1 = e1.map((v) => v / l1);
+    const e2 = [d[1] * e1[2] - d[2] * e1[1], d[2] * e1[0] - d[0] * e1[2], d[0] * e1[1] - d[1] * e1[0]];
+    const ring = (c, r, i) => { const t = (i / n) * Math.PI * 2, cs = Math.cos(t) * r, sn = Math.sin(t) * r; return [c[0] + e1[0] * cs + e2[0] * sn, c[1] + e1[1] * cs + e2[1] * sn, c[2] + e1[2] * cs + e2[2] * sn]; };
+    for (let i = 0; i < n; i++) {
+      const q = [ring(a, r0, i), ring(a, r0, i + 1), ring(b, r1, i + 1), ring(b, r1, i)];
+      const t = ((i + 0.5) / n) * Math.PI * 2, out = [e1[0] * Math.cos(t) + e2[0] * Math.sin(t), e1[1] * Math.cos(t) + e2[1] * Math.sin(t), e1[2] * Math.cos(t) + e2[2] * Math.sin(t)];
+      this.polyF(key, q, out, null, col);
+    }
+    const cap = []; for (let i = 0; i < n; i++) cap.push(ring(b, r1, i));
+    this.polyF(key, cap, d, null, col);
+  }
+  // Ellipsoid centred at (cu, y, cv), radii r·(1, k, sz).
+  ball(key, F, cu, y, cv, r, opt = {}) {
+    const rings = opt.rings || 5, k = opt.k ?? 1, prof = [];
+    for (let j = 0; j <= rings; j++) { const a = -Math.PI / 2 + (j / rings) * Math.PI; prof.push([Math.max(0, Math.cos(a) * r), y + Math.sin(a) * r * k]); }
+    prof[0][0] = 0; prof[rings][0] = 0;
+    this.lathe(key, F, cu, cv, prof, { sides: opt.sides || 8, col: opt.col, sz: opt.sz });
+  }
+
   // Dome (hemisphere-ish) of radius r centred at (cu, y0, cv), squashed by k.
   dome(key, F, cu, cv, r, y0, opt = {}) {
     const n = opt.sides || 16, rings = opt.rings || 6, k = opt.k ?? 1, col = opt.col || WHITE, m = opt.mw || 3;
@@ -164,7 +218,7 @@ export class Batches {
     void m;
   }
 
-  build(THREE, mats, group) {
+  build(THREE, mats, group, list) {
     let calls = 0, tris = 0;
     for (const [key, b] of this.map) {
       if (!b.p.length) continue;
@@ -174,7 +228,8 @@ export class Batches {
       g.setAttribute('uv', new THREE.Float32BufferAttribute(b.uv, 2));
       g.setAttribute('color', new THREE.Float32BufferAttribute(b.c, 3));
       g.computeBoundingSphere();
-      const mk = key.split('#')[0];
+      const [k0, tile] = key.split('#');
+      const mk = k0.replace('~d', '');
       const mat = mats(mk);
       const mesh = new THREE.Mesh(g, mat);
       mesh.name = 'world:' + mk;
@@ -182,6 +237,7 @@ export class Batches {
       mesh.updateMatrix();
       if (mat.transparent) mesh.renderOrder = 2;
       group.add(mesh);
+      if (list) list.push({ mesh, c: g.boundingSphere.center, r: g.boundingSphere.radius, detail: k0.endsWith('~d'), big: tile === 'big', far: /Far$/.test(mk) || mk === 'clock' });
       calls++; tris += b.tris;
     }
     this.map.clear();
@@ -190,6 +246,5 @@ export class Batches {
 }
 
 export const WHITE = [1, 1, 1];
-const CHUNK_X = [-215, -140, -60, 60, 130, 200];
-function chunkOf(x) { let i = 0; while (i < CHUNK_X.length && x > CHUNK_X[i]) i++; return i; }
+const TILE = 64;
 const UNIT = [[0, 0], [1, 0], [1, 1], [0, 1]];

@@ -1,19 +1,21 @@
-// MRTVÍ audio: routing, spatialisation, ambience scheduling. All synthesis is in
-// ./audio/synth.js (pure functions on any BaseAudioContext, so tests can render offline).
+// MRTVÍ audio: listener, spatial placement, voice management, ambience scheduling.
+// Synthesis lives in ./audio/synth.js, bus graph / levels / prerender catalogue in
+// ./audio/mix.js (both pure, so tests render the real chain offline).
 import * as S from './audio/synth.js';
+import * as M from './audio/mix.js';
 
 const rr = (a, b) => a + (b - a) * Math.random();
+const MAX_SHOTS = 24, MAX_GROANS = 6;
 
 export function create(game) {
   const L = game.layout;
-  let ctx = null, B = null;
-  let comp, master, sfxDry, outdoorLP, revIn, streetIn, streetSend, roomSend, echoIn, echoSend, ambBus;
-  const amb = {};                       // persistent ambience nodes
-  const pre = { moan: [], snarl: [], bark: [], caw: [], bell: null, ms: 0, done: false };
+  let ctx = null, B = null, bus = null, amb = null;
+  const pre = { buf: {}, ms: 0, done: false, n: 0 };          // pre.buf[kind] = AudioBuffer[]
   const lis = { x: 0, y: 0, z: 0 };
   const voices = [];                    // active groans
+  const shots = [];                     // all active buffered one-shots {level, end, input, src}
   let inside = 0, dread = 0, t0 = 0, nextGust = 0, nextDog = 0, nextCrow = 0, nextBeat = 0, alarmDone = false;
-  let lastExt = -1, lastSelf = 0, v3 = null;
+  let lastExt = -1, lastSelf = 0, v3 = null, building = false;
 
   const running = () => !!ctx && ctx.state === 'running';
   const now = () => ctx.currentTime + 0.01;
@@ -21,145 +23,117 @@ export function create(game) {
   function build() {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
+    building = true;
     ctx = new AC({ latencyHint: 'interactive' });
     B = S.makeBuffers(ctx);
-    comp = new DynamicsCompressorNode(ctx, { threshold: -16, knee: 12, ratio: 5, attack: 0.003, release: 0.25 });
-    master = S.gain(ctx, 0.9);
-    comp.connect(master).connect(ctx.destination);
-    sfxDry = S.gain(ctx, 1); sfxDry.connect(comp);
-    outdoorLP = S.filt(ctx, 'lowpass', 20000, 0.5); outdoorLP.connect(comp);
-    // reverbs: street (stone canyon) and room, crossfaded by game.interior.inside
-    const streetConv = new ConvolverNode(ctx, { buffer: S.makeIR(ctx, 'street') });
-    const roomConv = new ConvolverNode(ctx, { buffer: S.makeIR(ctx, 'room') });
-    streetIn = S.gain(ctx, 1); streetIn.connect(streetConv); streetConv.connect(S.gain(ctx, 0.55)).connect(outdoorLP);
-    roomConv.connect(S.gain(ctx, 0.45)).connect(comp);
-    revIn = S.gain(ctx, 1);
-    streetSend = S.gain(ctx, 1); roomSend = S.gain(ctx, 0);
-    revIn.connect(streetSend).connect(streetIn); revIn.connect(roomSend).connect(roomConv);
-    // discrete façade echoes (gunshots, bells)
-    echoIn = S.gain(ctx, 1); echoSend = S.gain(ctx, 1); echoIn.connect(echoSend);
-    const eo = S.filt(ctx, 'lowpass', 3000);
-    for (const [d, a] of [[0.13, 0.45], [0.31, 0.3]]) { const dl = new DelayNode(ctx, { delayTime: d, maxDelayTime: 1 }); echoSend.connect(dl).connect(S.gain(ctx, a)).connect(eo); }
-    const d3 = new DelayNode(ctx, { delayTime: 0.62, maxDelayTime: 1 }), fb = S.gain(ctx, 0.38), fl = S.filt(ctx, 'lowpass', 1800);
-    echoSend.connect(d3); d3.connect(fl).connect(fb).connect(d3); d3.connect(S.gain(ctx, 0.35)).connect(eo);
-    eo.connect(S.gain(ctx, 0.6)).connect(streetIn); eo.connect(S.gain(ctx, 0.5)).connect(outdoorLP);
-    ambBus = S.gain(ctx, 1); ambBus.connect(outdoorLP);
-    startAmbience();
+    bus = M.buildBus(ctx);
+    amb = M.startAmbience(ctx, B, bus);
     t0 = ctx.currentTime;
     nextDog = t0 + rr(12, 30); nextCrow = t0 + rr(20, 40); nextGust = t0;
     prerender();
     selfTick();
   }
 
-  function startAmbience() {
-    const t = ctx.currentTime;
-    // wind: low body + whistle through ruins
-    amb.windBP = S.filt(ctx, 'bandpass', 380, 0.6); amb.windG = S.gain(ctx, 0.08); amb.windPan = ctx.createStereoPanner();
-    S.noise(ctx, B.brown, t, 1e6, 0.93).connect(amb.windBP).connect(amb.windG).connect(amb.windPan).connect(ambBus);
-    amb.whBP = S.filt(ctx, 'bandpass', 900, 9); amb.whG = S.gain(ctx, 0.01);
-    S.noise(ctx, B.pink, t, 1e6, 1.04).connect(amb.whBP).connect(amb.whG).connect(amb.windPan);
-    // gentle rain hiss
-    amb.rainG = S.gain(ctx, 0.03);
-    S.noise(ctx, B.white, t, 1e6, 0.97).connect(S.filt(ctx, 'highpass', 2000)).connect(S.filt(ctx, 'lowpass', 7000)).connect(amb.rainG).connect(ambBus);
-    // dread drone: beating sub pair, low saw, tritone layer that opens with dread, rumble
-    amb.droneG = S.gain(ctx, 0.03); amb.droneG.connect(sfxDry);
-    const dlp = S.filt(ctx, 'lowpass', 140, 0.7); dlp.connect(amb.droneG);
-    for (const [f, ty, a] of [[36.7, 'sine', 0.6], [36.95, 'sine', 0.6], [55, 'sawtooth', 0.35], [55.3, 'sawtooth', 0.3]]) S.osc(ctx, ty, f, t, 1e6).connect(S.gain(ctx, a)).connect(dlp);
-    amb.dreadLP = S.filt(ctx, 'lowpass', 200, 2); amb.dreadG = S.gain(ctx, 0);
-    for (const f of [77.8, 78.2, 116.5]) S.osc(ctx, 'sawtooth', f, t, 1e6).connect(S.gain(ctx, 0.3)).connect(amb.dreadLP);
-    amb.dreadLP.connect(amb.dreadG).connect(sfxDry);
-    S.noise(ctx, B.brown, t, 1e6, 0.5).connect(S.filt(ctx, 'lowpass', 90)).connect(S.gain(ctx, 0.5)).connect(amb.droneG);
-    const lfo = S.osc(ctx, 'sine', 0.13, t, 1e6); lfo.connect(S.gain(ctx, 0.01)).connect(amb.droneG.gain);
-  }
-
-  // Render reusable voices once, off the main thread.
+  // Render reusable voices in the background, a chunk per macrotask; each kind is usable
+  // as soon as its first variant lands (live synthesis until then).
   async function prerender() {
     try {
-      const sr = ctx.sampleRate, specs = [], r = S.prng(4242);
-      for (let i = 0; i < 7; i++) specs.push({ k: 'moan', len: 2.6, f: (c, b, o, t) => S.groan(c, b, o, t, { seed: 100 + i, dur: 1.4 + r() * 1.1, level: 1 }) });
-      for (let i = 0; i < 5; i++) specs.push({ k: 'snarl', len: 1.3, f: (c, b, o, t) => S.groan(c, b, o, t, { seed: 200 + i, snarl: 1, dur: 0.7 + r() * 0.5, level: 1 }) });
-      specs.push({ k: 'bell', len: 14, f: (c, b, o, t) => S.bell(c, b, o, t, 128) });
-      for (let i = 0; i < 3; i++) specs.push({ k: 'bark', len: 0.3, f: (c, b, o, t) => S.bark(c, b, o, t, 300 + i) });
-      for (let i = 0; i < 3; i++) specs.push({ k: 'caw', len: 0.5, f: (c, b, o, t) => S.caw(c, b, o, t, 400 + i) });
-      const t1 = performance.now();
-      await Promise.all(specs.map(async (s) => {
-        const oc = new OfflineAudioContext(1, Math.ceil(s.len * sr), sr);
-        s.f(oc, B, oc.destination, 0);                 // AudioBuffers are shareable across same-rate contexts
-        const buf = await oc.startRendering(), d = buf.getChannelData(0);
-        let pk = 0; for (let i = 0; i < d.length; i++) pk = Math.max(pk, Math.abs(d[i]));
-        if (pk > 0) for (let i = 0; i < d.length; i++) d[i] *= 0.9 / pk;
-        if (s.k === 'bell') pre.bell = buf; else pre[s.k].push(buf);
-      }));
+      const specs = M.voiceSpecs((Math.random() * 1e9) | 0), sr = ctx.sampleRate, t1 = performance.now();
+      for (let i = 0; i < specs.length; i += 8) {
+        await Promise.all(specs.slice(i, i + 8).map(async (s) => {
+          const buf = await M.renderSpec(s, B, sr);
+          (pre.buf[s.k] ||= []).push(buf); pre.n++;
+        }));
+        await new Promise((r) => setTimeout(r, 0));
+      }
       pre.ms = performance.now() - t1; pre.done = true;
     } catch (e) { console.warn('[audio] prerender failed, using live synthesis', e); }
   }
+  const has = (k) => pre.buf[k]?.length > 0;
+  const pick = (a) => a[(Math.random() * a.length) | 0];
 
-  // ---- routing helpers ----
+  // ---- routing / voice management ----
   function audioPos(x, y, z) {
     // Inside an interior cell, map city coordinates so the door is where the listener stands.
     if (inside > 0.5 && Math.abs(x - L.INTERIOR.x) > 500) return [x - L.PHARMACY_DOOR.x + lis.x, y, z - L.PHARMACY_DOOR.z + lis.z];
     return [x, y, z];
   }
-  function place(x, y, z, o = {}) {
-    const [px, py, pz] = audioPos(x, y, z);
-    const dist = Math.hypot(px - lis.x, py - lis.y, pz - lis.z), ref = o.ref ?? 4;
-    const input = S.gain(ctx, o.gain ?? 1);
-    const air = S.filt(ctx, 'lowpass', S.clamp(20000 * Math.exp(-dist / (o.air ?? 110)), 700, 20000), 0.5);
-    const p = new PannerNode(ctx, { panningModel: 'HRTF', distanceModel: 'inverse', refDistance: ref, rolloffFactor: o.rolloff ?? 1, maxDistance: 10000, positionX: px, positionY: py, positionZ: pz });
-    input.connect(air).connect(p).connect(o.outdoor ? outdoorLP : sfxDry);
-    const send = S.gain(ctx, (o.wet ?? 0.3) * Math.sqrt(ref / Math.max(dist, ref)));
-    air.connect(send).connect(o.outdoor ? streetIn : revIn);
-    let echo = null;
-    if (o.echo) { echo = S.gain(ctx, o.echo); air.connect(echo).connect(echoIn); }
-    return {
-      input, dist, gainAtListener: ref / Math.max(dist, ref),
-      done(sec) { setTimeout(() => { for (const n of [input, air, p, send, echo]) try { n && n.disconnect(); } catch {} }, sec * 1000 + 300); },
-    };
-  }
-  function local(o = {}) {
-    const input = S.gain(ctx, o.gain ?? 1);
-    input.connect(sfxDry);
-    const send = S.gain(ctx, o.wet ?? 0.15); input.connect(send).connect(revIn);
-    let echo = null;
-    if (o.echo) { echo = S.gain(ctx, o.echo); input.connect(echo).connect(echoIn); }
-    return { input, done(sec) { setTimeout(() => { for (const n of [input, send, echo]) try { n && n.disconnect(); } catch {} }, sec * 1000 + 300); } };
+  const place = (x, y, z, o) => M.spatialChain(ctx, bus, audioPos(x, y, z), lis, o);
+  // Disconnect a chain once `sec` of audio time has played. Timed by a silent source on the
+  // context clock (not setTimeout), so a suspended / hidden tab can't cut scheduled sounds.
+  function release(ch, sec) {
+    const k = new ConstantSourceNode(ctx, { offset: 0 }), t = ctx.currentTime;
+    k.connect(ch.input);
+    k.onended = () => { try { k.disconnect(); } catch {} for (const n of ch.nodes) try { n.disconnect(); } catch {} };
+    k.start(t); k.stop(t + sec + 0.3);
   }
   function playBuf(buf, out, t, rate = 1) {
     const s = ctx.createBufferSource(); s.buffer = buf; s.playbackRate.value = rate; s.connect(out); s.start(t); return s;
   }
-  const pick = (a) => a[(Math.random() * a.length) | 0];
-  function oneShot(fn, o, secs) { if (!running()) return; try { const n = local(o); fn(ctx, B, n.input, now()); n.done(secs); } catch (e) { console.warn('[audio]', e); } }
+  function stopShot(v, t) {
+    v.input.gain.cancelScheduledValues(t); v.input.gain.setTargetAtTime(0, t, 0.015);
+    try { v.src && v.src.stop(t + 0.08); } catch {}
+    v.end = t;
+  }
+  // Admit a one-shot of loudness `level`; returns false if it is the quietest of a full set.
+  function admit(level, t) {
+    for (let i = shots.length - 1; i >= 0; i--) if (shots[i].end < t) shots.splice(i, 1);
+    if (shots.length < MAX_SHOTS) return true;
+    let q = 0; for (let i = 1; i < shots.length; i++) if (shots[i].level < shots[q].level) q = i;
+    if (shots[q].level >= level) return false;
+    stopShot(shots.splice(q, 1)[0], t);
+    return true;
+  }
+  // Play a prerendered kind through a chain; falls back to live synthesis.
+  function fire(kind, ch, t, live, rate = 1) {
+    let src = null, len;
+    if (has(kind)) { const b = pick(pre.buf[kind]); src = playBuf(b, ch.input, t, rate); len = b.duration / rate; }
+    else len = live(ctx, B, ch.input, t) || 1;
+    const v = { level: ch.level, end: t + len, input: ch.input, src };
+    shots.push(v); release(ch, len + 0.3);
+    return v;
+  }
+  function localShot(kind, opt, live, gainMul = 1) {
+    if (!running()) return;
+    try {
+      const t = now(), o = { ...opt, gain: opt.gain * gainMul };
+      if (!admit(o.gain, t)) return;
+      fire(kind, M.localChain(ctx, bus, o), t, live, rr(0.97, 1.03));
+    } catch (e) { console.warn('[audio]', e); }
+  }
+  function oneShot(fn, o, secs) {
+    if (!running()) return;
+    try { const ch = M.localChain(ctx, bus, o); fn(ctx, B, ch.input, now()); release(ch, secs); } catch (e) { console.warn('[audio]', e); }
+  }
+  let lastTick = -1;
+  function tickShot(fn, o) {                       // hit / headshot ticks: 3 dB down when < 250 ms apart
+    if (!running()) return;
+    const t = ctx.currentTime, near = t - lastTick < 0.25; lastTick = t;
+    oneShot(fn, near ? { ...o, gain: o.gain * M.TICK_REPEAT } : o, 0.4);
+  }
 
   // ---- ambience ----
   function farPoint(dmin, dmax) {
     const a = Math.random() * Math.PI * 2, d = rr(dmin, dmax);
     return [lis.x + Math.cos(a) * d, lis.z + Math.sin(a) * d];
   }
-  function dogs(t) {
-    const [x, z] = farPoint(120, 260);
-    const n = 2 + ((Math.random() * 4) | 0), pl = place(x, lis.y + 1, z, { ref: 10, outdoor: true, wet: 0.9, air: 160, gain: 0.9 });
+  function calls(kind, synth, n, gap, o, y) {
+    const [x, z] = farPoint(...o.d);
+    const ch = place(x, lis.y + y, z, o), t = now();
     let tt = t;
     for (let i = 0; i < n; i++) {
-      if (pre.done) playBuf(pick(pre.bark), pl.input, tt, rr(0.95, 1.05)); else S.bark(ctx, B, pl.input, tt, (Math.random() * 1e6) | 0);
-      tt += rr(0.3, 0.7);
+      if (has(kind)) playBuf(pick(pre.buf[kind]), ch.input, tt, rr(0.93, 1.07)); else synth(ctx, B, ch.input, tt, (Math.random() * 1e6) | 0);
+      tt += rr(...gap);
     }
-    pl.done(tt - t + 4);
+    release(ch, tt - t + 4);
   }
-  function crows(t) {
-    const [x, z] = farPoint(40, 110);
-    const n = 1 + ((Math.random() * 3) | 0), pl = place(x, lis.y + 18, z, { ref: 8, outdoor: true, wet: 0.7, air: 200, gain: 0.5 });
-    let tt = t;
-    for (let i = 0; i < n; i++) {
-      if (pre.done) playBuf(pick(pre.caw), pl.input, tt, rr(0.92, 1.08)); else S.caw(ctx, B, pl.input, tt, (Math.random() * 1e6) | 0);
-      tt += rr(0.45, 0.8);
-    }
-    pl.done(tt - t + 4);
-  }
+  const dogs = () => calls('bark', S.bark, 2 + ((Math.random() * 4) | 0), [0.3, 0.7], { d: [120, 260], ref: 10, outdoor: true, wet: 0.9, air: 160, gain: 0.9 }, 1);
+  const crows = () => calls('caw', S.caw, 1 + ((Math.random() * 3) | 0), [0.45, 0.8], { d: [40, 110], ref: 8, outdoor: true, wet: 0.7, air: 200, gain: 0.5 }, 18);
   function carAlarm(t) {
     const [x, z] = farPoint(150, 190);
-    const pl = place(x, lis.y, z, { ref: 25, outdoor: true, wet: 0.8, air: 250, gain: 0.7 });
-    S.alarm(ctx, B, pl.input, t, 20);
-    pl.done(24);
+    const ch = place(x, lis.y, z, { ref: 25, outdoor: true, wet: 0.8, air: 250, gain: 0.7 });
+    S.alarm(ctx, B, ch.input, t, 20);
+    release(ch, 24);
   }
 
   function tick(dt) {
@@ -182,10 +156,10 @@ export function create(game) {
       const inTarget = game.interior?.inside ? 1 : 0;
       if (inTarget !== inside) {
         inside = inTarget;
-        streetSend.gain.setTargetAtTime(1 - inside, t, 0.1); roomSend.gain.setTargetAtTime(inside, t, 0.1);
-        echoSend.gain.setTargetAtTime(1 - inside, t, 0.1);
-        outdoorLP.frequency.setTargetAtTime(inside ? 650 : 20000, t, 0.15);
-        ambBus.gain.setTargetAtTime(inside ? 0.6 : 1, t, 0.3);
+        bus.streetSend.gain.setTargetAtTime(1 - inside, t, 0.1); bus.roomSend.gain.setTargetAtTime(inside, t, 0.1);
+        bus.echoSend.gain.setTargetAtTime(1 - inside, t, 0.1);
+        bus.outdoorLP.frequency.setTargetAtTime(inside ? 650 : 20000, t, 0.15);
+        bus.ambBus.gain.setTargetAtTime(inside ? 0.6 : 1, t, 0.3);
       }
       // wind gusts
       if (t >= nextGust) {
@@ -197,8 +171,8 @@ export function create(game) {
         amb.windPan.pan.setTargetAtTime(rr(-0.6, 0.6), t, tau * 2);
         nextGust = t + rr(2.5, 8);
       }
-      if (t >= nextDog) { dogs(t + 0.05); nextDog = t + rr(25, 60); }
-      if (t >= nextCrow) { crows(t + 0.05); nextCrow = t + rr(25, 60); }
+      if (t >= nextDog) { dogs(); nextDog = t + rr(25, 60); }
+      if (t >= nextCrow) { crows(); nextCrow = t + rr(25, 60); }
       if (!alarmDone && t - t0 > 60) { alarmDone = true; carAlarm(t + 0.05); }
       // dread: player noise + proximity of the dead
       const P = game.player?.pos;
@@ -207,17 +181,15 @@ export function create(game) {
       const prox = S.clamp((25 - d) / 20, 0, 1), loud = S.clamp(+game.player?.noise || 0, 0, 1);
       const target = S.clamp(0.35 * loud + 0.8 * prox, 0, 1);
       dread += (target - dread) * Math.min(1, (dt || 0.016) * 1.5);
-      amb.droneG.gain.setTargetAtTime(0.03 + 0.17 * dread, t, 0.3);
-      amb.dreadG.gain.setTargetAtTime(0.1 * dread ** 1.5, t, 0.3);
-      amb.dreadLP.frequency.setTargetAtTime(200 + 900 * dread, t, 0.3);
+      M.setDread(amb, t, dread);
       const hp = game.player?.health ?? 100;
       if ((d < 6 || (hp < 25 && game.player?.alive !== false)) && t >= nextBeat) {
         const rate = d < 6 ? 95 + 55 * (1 - d / 6) : 75;
-        S.heartbeat(ctx, B, sfxDry, t + 0.02, rate);
+        S.heartbeat(ctx, B, bus.heart, t + 0.02, rate);
         nextBeat = t + 60 / rate;
       }
-      // groan voice bookkeeping
       for (let i = voices.length - 1; i >= 0; i--) if (voices[i].end < t) voices.splice(i, 1);
+      for (let i = shots.length - 1; i >= 0; i--) if (shots[i].end < t) shots.splice(i, 1);
     } catch (e) { if (!tick._w) { tick._w = 1; console.warn('[audio] update', e); } }
   }
 
@@ -233,27 +205,46 @@ export function create(game) {
 
   return {
     get ctx() { return ctx; },
-    resume() {
+    get musicIn() { return bus?.music || null; },     // trailer score feeds the game's limiter
+    resume() {                                            // idempotent; safe to call every gesture
       try {
-        if (!ctx) build();
+        if (!ctx && !building) build();
         if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
       } catch (e) { console.warn('[audio] resume', e); }
     },
     update(dt) { lastExt = performance.now(); tick(dt); },
 
-    footstep(surface = 'cobble', loud = 0.6) { oneShot((c, b, o, t) => S.footstep(c, b, o, t, surface, loud), { gain: 0.55, wet: 0.12 }, 0.6); },
-    swing() { oneShot(S.swing, { gain: 0.5, wet: 0.08 }, 0.5); },
-    hitFlesh() { oneShot(S.hitFlesh, { gain: 0.8, wet: 0.15 }, 0.5); },
-    gunshot() { oneShot(S.gunshot, { gain: 1, wet: 0.9, echo: 0.8 }, 5); },
-    dryFire() { oneShot(S.dryFire, { gain: 0.5, wet: 0.05 }, 0.3); },
-    reload() { oneShot(S.reload, { gain: 0.5, wet: 0.05 }, 1.6); },
-    hurt() { oneShot(S.hurt, { gain: 0.8, wet: 0.1 }, 1.6); },
-    heartbeat(rate = 80) { oneShot((c, b, o, t) => S.heartbeat(c, b, o, t, rate), { gain: 1, wet: 0 }, 1); },
-    pickup() { oneShot(S.pickup, { gain: 0.6, wet: 0.15 }, 1.8); },
-    door() { oneShot(S.door, { gain: 0.6, wet: 0.2 }, 2); },
-    deliver() { oneShot(S.chord, { gain: 0.8, wet: 0.5 }, 9); },
+    footstep(surface = 'cobble', loud = 0.6) {
+      const s = M.SURFACES.includes(surface) ? surface : 'cobble';
+      localShot('step_' + s, M.LEVEL.footstep, (c, b, o, t) => { S.footstep(c, b, o, t, s, 1); return 0.5; }, M.stepGain(loud));
+    },
+    swing() { localShot('swing', M.LEVEL.swing, (c, b, o, t) => { S.swing(c, b, o, t); return 0.4; }); },
+    hitFlesh() { localShot('hitFlesh', M.LEVEL.hitFlesh, (c, b, o, t) => { S.hitFlesh(c, b, o, t); return 0.45; }); },
+    gunshot() { localShot('gunshot', M.LEVEL.gunshot, (c, b, o, t) => { S.gunshot(c, b, o, t); return 0.45; }); },
+    dryFire() { oneShot(S.dryFire, M.LEVEL.dryFire, 0.3); },
+    reload() { oneShot(S.reload, M.LEVEL.reload, 1.6); },
+    hitMarker() { tickShot(S.hitMarker, M.LEVEL.hitMarker); },
+    headshot() { tickShot(S.headshot, M.LEVEL.headshot); },
+    hurt() { oneShot(S.hurt, M.LEVEL.hurt, 1.6); },
+    heartbeat(rate = 80) { oneShot((c, b, o, t) => S.heartbeat(c, b, o, t, rate), { ...M.LEVEL.heartbeat, out: bus?.heart }, 1); },
+    pickup() { oneShot(S.pickup, M.LEVEL.pickup, 1.8); },
+    door() { oneShot(S.door, M.LEVEL.door, 2); },
+    deliver() { oneShot(S.chord, M.LEVEL.deliver, 9); },
 
-    groan(x, z, intensity = 0.5) {
+    bodyFall(x, z) {
+      if (!running()) return;
+      try {
+        const ins = Math.abs(x - L.INTERIOR.x) < 500, y = ins ? lis.y - 1.4 : L.heightAt(x, z) + 0.2;
+        const ch = place(x, y, z, M.BODYFALL);
+        if (ch.dist > 80) { release(ch, 0); return; }
+        const t = now();
+        if (!admit(ch.level, t)) { release(ch, 0); return; }
+        fire('bodyFall', ch, t, S.bodyFall, rr(0.9, 1.08));
+      } catch (e) { console.warn('[audio] bodyFall', e); }
+    },
+
+    // opts.tell: an attack tell — always a fast-onset snarl.
+    groan(x, z, intensity = 0.5, opts) {
       if (!running()) return;
       try {
         const ins = Math.abs(x - L.INTERIOR.x) < 500;
@@ -263,21 +254,16 @@ export function create(game) {
         if (dist > 110) return;
         const t = now();
         for (let i = voices.length - 1; i >= 0; i--) if (voices[i].end < t) voices.splice(i, 1);
-        if (voices.length >= 6) {
+        if (voices.length >= MAX_GROANS) {
           let far = 0; for (let i = 1; i < voices.length; i++) if (voices[i].dist > voices[far].dist) far = i;
           if (voices[far].dist <= dist) return;            // all current voices are closer — drop
-          const v = voices.splice(far, 1)[0];
-          v.input.gain.setTargetAtTime(0, t, 0.03); try { v.src && v.src.stop(t + 0.15); } catch {}
+          stopShot(voices.splice(far, 1)[0], t);
         }
-        const k = S.clamp(intensity, 0, 1), snarl = k > 0.65 && Math.random() < 0.75;
-        const pl = place(x, y, z, { ref: 3, rolloff: 1.1, wet: 0.35, gain: 0.45 + 0.6 * k });
-        let len, src = null;
-        if (pre.done) {
-          const buf = pick(snarl ? pre.snarl : pre.moan), rate = rr(0.88, 1.1);
-          src = playBuf(buf, pl.input, t, rate); len = buf.duration / rate;
-        } else len = S.groan(ctx, B, pl.input, t, { seed: (Math.random() * 1e6) | 0, snarl, level: 1 });
-        voices.push({ input: pl.input, src, dist, end: t + len });
-        pl.done(len + 1);
+        const k = S.clamp(intensity, 0, 1), snarl = !!opts?.tell || (k > 0.65 && Math.random() < 0.75);
+        const ch = place(x, y, z, { ...M.GROAN, gain: M.groanGain(k) });
+        if (!admit(ch.level, t)) { release(ch, 0); return; }
+        const v = fire(snarl ? 'snarl' : 'moan', ch, t, (c, b, o, tt) => S.groan(c, b, o, tt, { seed: (Math.random() * 1e6) | 0, snarl, level: 1 }), rr(0.82, 1.15));
+        v.dist = dist; voices.push(v);
       } catch (e) { console.warn('[audio] groan', e); }
     },
 
@@ -291,13 +277,16 @@ export function create(game) {
         const pe = place(ex, y - 20, ez, { ref: 45, outdoor: true, wet: 0.9, air: 150, gain: 0.12 });
         for (let i = 0; i < n; i++) {
           const ti = t + i * gap, rate = rr(0.997, 1.003);
-          if (pre.bell) { playBuf(pre.bell, pl.input, ti, rate); playBuf(pre.bell, pe.input, ti + 0.38, rate); }
+          if (has('bell')) { playBuf(pre.buf.bell[0], pl.input, ti, rate); playBuf(pre.buf.bell[0], pe.input, ti + 0.38, rate); }
           else { S.bell(ctx, B, pl.input, ti); }
         }
-        pl.done(n * gap + 12); pe.done(n * gap + 12);
+        release(pl, n * gap + 12); release(pe, n * gap + 12);
       } catch (e) { console.warn('[audio] chime', e); }
     },
 
-    _debug() { return { state: ctx?.state, pre: pre.done, prerenderMs: pre.ms, voices: voices.length, dread, inside, lis: { ...lis } }; },
+    _debug() {
+      const t = ctx ? ctx.currentTime : 0;
+      return { state: ctx?.state, pre: pre.done, prerenderMs: pre.ms, prerendered: pre.n, voices: voices.length, shots: shots.filter((s) => s.end >= t).length, dread, inside, lis: { ...lis } };
+    },
   };
 }

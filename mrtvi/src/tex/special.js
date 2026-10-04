@@ -186,6 +186,14 @@ export function skin(i) {
   g.fillStyle = rgbStr(...base); g.fillRect(0, 0, S, S);
   blendTile(g, noiseTile(191 + i, 256, 4), 'overlay', 0.6, 1);
   blendTile(g, noiseTile(195, 256, 16, 3), 'soft-light', 0.5, 1);
+  // High-frequency mottling: blotchy pores, livor speckle, fine dark flecks.
+  blendTile(g, noiseTile(197, 256, 32, 3, 0.6), 'overlay', 0.55, 1, i * 61, i * 37);
+  blendTile(g, noiseMask(199, [90, 70, 80], 0.55, 0.8, 256, 32), 'multiply', 0.45, 1, i * 83, i * 29);
+  for (let k = 0; k < 900; k++) {
+    const x = R() * S, y = R() * S, r = 0.4 + R() * 1.4;
+    g.fillStyle = R() < 0.7 ? `rgba(40,30,35,${0.15 + R() * 0.25})` : `rgba(200,195,160,${0.08 + R() * 0.12})`;
+    g.fillRect(x, y, r, r);
+  }
   // Bruising: purple/yellow blotches.
   for (let k = 0; k < 7; k++) {
     const x = R() * S, y = R() * S, r = 20 + R() * 40;
@@ -266,19 +274,49 @@ export function cloth(i) {
     for (let x = 0; x < S; x += 16) { g.fillStyle = 'rgba(170,170,170,0.18)'; g.fillRect(x, 0, 1, S); }
     blendTile(g, noiseTile(211, 256, 8), 'overlay', 0.35, 1);
   }
-  // Dirt, blood, tears and fraying.
-  blendTile(g, noiseMask(213 + kind, [55, 45, 30], 0.5, 0.85, 256, 4), 'multiply', 0.55, 1);
+  // Heavy grime: mottled dirt, soot, sweat stains, a darker hem band (stitched hem at the
+  // tile seam, so the vertical wrap reads as a hem rather than a seam).
+  blendTile(g, noiseMask(213 + kind, [50, 42, 30], 0.42, 0.8, 256, 4), 'multiply', 0.75, 1);
+  blendTile(g, noiseMask(219, [30, 26, 20], 0.55, 0.85, 256, 8), 'multiply', 0.55, 1, kind * 71, kind * 43);
+  blendTile(g, noiseTile(225, 256, 32, 3), 'overlay', 0.35, 1);
+  const hem = g.createLinearGradient(0, S * 0.35, 0, S);
+  hem.addColorStop(0, 'rgba(60,48,32,0)'); hem.addColorStop(0.6, 'rgba(60,48,32,0.45)'); hem.addColorStop(1, 'rgba(35,28,20,0.85)');
+  g.save(); g.globalCompositeOperation = 'multiply'; g.fillStyle = hem; g.fillRect(0, 0, S, S); g.restore();
+  g.fillStyle = 'rgba(20,16,12,0.7)'; g.fillRect(0, S - 5, S, 5);
+  g.strokeStyle = 'rgba(15,12,10,0.6)'; g.setLineDash([3, 3]); g.lineWidth = 1;
+  g.beginPath(); g.moveTo(0, S - 9); g.lineTo(S, S - 9); g.stroke(); g.setLineDash([]);
+  for (let k = 0; k < 3; k++) {   // sweat/water tide marks
+    const x = R() * S, y = R() * S, r = 22 + R() * 30;
+    wrapDraw(S, S, x, y, r, (X, Y) => {
+      stain(g, X, Y, r, 'rgba(120,100,60,1)', 0.35);
+      g.strokeStyle = 'rgba(70,55,35,0.35)'; g.lineWidth = 1.5; blobPath(g, X, Y, r * 0.85, r * 0.75, R, 14, 0.4); g.stroke();
+    });
+  }
+  // Dried blood: brown-black crusts, darker centres, drips running down.
   for (let k = 0; k < 2 + kind % 3; k++) {
-    const x = R() * S, y = R() * S, r = 25 + R() * 40;
-    wrapDraw(S, S, x, y, r, (X, Y) => { stain(g, X, Y, r, 'rgba(85,15,10,1)', 0.8); splatter(g, X, Y, r * 1.3, R, 18, [70, 10, 8]); });
+    const x = R() * S, y = R() * S, r = 22 + R() * 40;
+    wrapDraw(S, S, x, y, r, (X, Y) => {
+      stain(g, X, Y, r, 'rgba(52,24,16,1)', 0.9);
+      g.fillStyle = 'rgba(28,14,10,0.75)'; blobPath(g, X, Y, r * 0.45, r * 0.35, R, 14, 0.7); g.fill();
+      splatter(g, X, Y, r * 1.3, R, 18, [40, 18, 12]);
+    });
+    streaks(g, x, y, r, 40 + R() * 120, R, 4, 0.7, '40,18,12');
   }
-  streaks(g, R() * S, 0, 40, S, R, 6, 0.5, '70,12,8');
-  for (let k = 0; k < 2; k++) {
-    const x = 20 + R() * (S - 40), y = 20 + R() * (S - 40);
-    g.fillStyle = 'rgba(10,8,8,0.9)'; blobPath(g, x, y, 6 + R() * 10, 2 + R() * 4, R, 10, 0.8); g.fill();
-    g.strokeStyle = 'rgba(200,190,170,0.35)'; g.lineWidth = 1; g.stroke();
+  streaks(g, R() * S, 0, 40, S, R, 6, 0.55, '45,22,14');
+  // Tears: ragged dark holes with frayed, lighter thread edges and a shadowed rim.
+  for (let k = 0; k < 3 + (R() * 3 | 0); k++) {
+    const x = 24 + R() * (S - 48), y = 24 + R() * (S - 48), rx = 6 + R() * 16, ry = 3 + R() * 9, rot = R() * Math.PI;
+    g.save(); g.translate(x, y); g.rotate(rot);
+    stain(g, 0, 0, rx * 1.8, 'rgba(30,24,18,1)', 0.6);
+    g.fillStyle = 'rgba(6,5,5,0.97)'; blobPath(g, 0, 0, rx, ry, R, 16, 0.9); g.fill();
+    g.strokeStyle = 'rgba(120,108,90,0.3)'; g.lineWidth = 0.8;
+    for (let t = 0; t < 9; t++) {
+      const a = R() * Math.PI * 2, ex = Math.cos(a) * rx, ey = Math.sin(a) * ry, l = 1.5 + R() * 3;
+      g.beginPath(); g.moveTo(ex, ey); g.lineTo(ex - Math.cos(a) * l + (R() - 0.5) * 3, ey - Math.sin(a) * l); g.stroke();
+    }
+    g.restore();
   }
-  desaturate(g, kind === 3 ? 0.25 : 0.3);
-  grain(g, 0.14);
+  desaturate(g, kind === 3 ? 0.5 : 0.6);
+  grain(g, 0.16);
   return c;
 }

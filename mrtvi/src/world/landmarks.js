@@ -2,6 +2,8 @@
 // the pharmacy, St Nicholas, the Castle walls/gate and St Vitus. Each reserves its footprint
 // in the occupancy grid before the street lots are placed.
 
+import { robedFigure } from './figure.js';
+
 export function buildLandmarks(W) {
   const { B, L, H, R, frame, sub, P, solid, stamp, reserveAxis, metres, THREE } = W;
   const sm = metres('stone')[0], rm = metres('roof')[0], wm = metres('wall')[0];
@@ -144,8 +146,13 @@ export function buildLandmarks(W) {
         if (k === 4 && sgn > 0) continue;              // gap: the horde comes through here
         const zc = sgn * (hw + 0.9);
         const F = frame(x, 0, zc, sgn > 0 ? Math.PI : 0); // local v points into the bridge
-        stoneBox(F, -0.95, 0.95, -0.05, 2.3, -0.9, 0.9, BLACK, 'bottom');
-        stoneBox(F, -1.1, 1.1, 2.3, 2.55, -1.05, 1.05, [0.48, 0.46, 0.43], 'bottom');
+        // plinth: moulded base, die with a sunk panel facing the deck, cornice, low pedestal
+        stoneBox(F, -1.1, 1.1, -0.05, 0.45, -1.05, 1.05, [0.4, 0.38, 0.36], 'bottom');
+        stoneBox(F, -0.92, 0.92, 0.45, 1.95, -0.87, 0.87, BLACK, 'bottom,top');
+        B.quad('stone', P(F, -0.55, 0.75, 0.88), P(F, 0.55, 0.75, 0.88), P(F, 0.55, 1.7, 0.88), P(F, -0.55, 1.7, 0.88), [[0, 0], [0.4, 0], [0.4, 0.35], [0, 0.35]], [0.3, 0.29, 0.27]);
+        stoneBox(F, -1.05, 1.05, 1.95, 2.15, -1.0, 1.0, [0.46, 0.44, 0.41], 'bottom');
+        stoneBox(F, -1.15, 1.15, 2.15, 2.3, -1.1, 1.1, [0.5, 0.48, 0.45], 'bottom');
+        stoneBox(F, -0.6, 0.6, 2.3, 2.55, -0.55, 0.55, [0.38, 0.36, 0.34], 'bottom');
         solid(x, zc, 0.95, 0.9, 0, -10, 100, true);
         statues.push([F, SR()]);
       }
@@ -156,47 +163,62 @@ export function buildLandmarks(W) {
       const x = -36 + k * 9;
       for (const sgn of [-1, 1]) {
         const F = frame(x, 1.2, sgn * (hw + 0.25), 0);
-        B.prism('metal', F, 0, 0, 0.07, 0, 2.8, { sides: 5 });
-        B.box('metal', F, -0.22, 0.22, 2.8, 3.35, -0.22, 0.22, { skip: 'bottom' });
-        B.spire('metal', F, 0, 0, 0.26, 3.35, 3.65, {});
+        // cast-iron post with a collar, and a Prague lantern: a glass lantern widening upwards
+        // (dark, the gas long gone), a slim frame, a domed cap with a finial
+        B.prism('metal', F, 0, 0, 0.11, 0, 0.5, { sides: 8, r1: 0.075 });
+        B.prism('metal', F, 0, 0, 0.065, 0.5, 2.75, { sides: 8, r1: 0.05 });
+        B.prism('metal', F, 0, 0, 0.1, 2.72, 2.84, { sides: 8, r1: 0.07, cap: true });
+        B.prism('glass', F, 0, 0, 0.1, 2.84, 3.3, { sides: 6, r1: 0.19 });
+        for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; B.beam('metal', P(F, Math.cos(a) * 0.105, 2.84, Math.sin(a) * 0.105), P(F, Math.cos(a) * 0.2, 3.3, Math.sin(a) * 0.2), 0.012, 0.012, { sides: 3 }); }
+        B.prism('metal', F, 0, 0, 0.23, 3.3, 3.36, { sides: 6, r1: 0.22 });
+        B.spire('metal', F, 0, 0, 0.17, 3.36, 3.58, { sides: 6 });
+        B.ball('metal', F, 0, 3.62, 0, 0.04, { sides: 5, rings: 3 });
         W.lamps.push(new THREE.Vector3(x, 4.3, sgn * (hw + 0.25)));
       }
     }
   }
 
-  function statue(F, r) {
-    const col = SOOT;
+  // Blackened baroque statues: robed figures (lathe robe, separate head, arms) on the plinths.
+  function statue(F0, r) {
+    const col = SOOT, y0 = 2.55;
+    const F = sub(F0, 0, 0, 0, Math.PI);              // figures face the deck (local −v)
     const kind = Math.floor(r * 4);
-    const y0 = 2.55;
-    if (kind === 0) {                                  // crucifix group
-      B.box('stone', F, -0.12, 0.12, y0, y0 + 4.2, -0.12, 0.12, { col, skip: 'bottom' });
-      B.box('stone', F, -1.1, 1.1, y0 + 3.0, y0 + 3.25, -0.12, 0.12, { col });
-      B.box('stone', F, -0.2, 0.2, y0 + 1.6, y0 + 3.0, -0.25, -0.12, { col });
-      B.box('gold', F, -0.9, 0.9, y0 + 3.6, y0 + 3.75, -0.3, -0.13, { col: [0.6, 0.55, 0.4] });
+    if (kind === 0) {                                  // Calvary: crucifix with corpus, mourner below
+      B.box('stone', F, -0.12, 0.12, y0, y0 + 4.4, -0.12, 0.12, { col, skip: 'bottom' });
+      B.box('stone', F, -1.1, 1.1, y0 + 3.15, y0 + 3.4, -0.12, 0.12, { col });
+      const at = (u, y, v) => P(F, u, y0 + y, v);
+      B.lathe('stone', F, 0, -0.2, [[0.0, 1.9], [0.13, 1.95], [0.16, 2.4], [0.2, 2.9], [0.12, 3.05], [0, 3.08]].map(([rr, y]) => [rr, y0 + y]), { col, sides: 7, sz: 0.7 });
+      B.ball('stone', F, 0.03, y0 + 3.18, -0.24, 0.12, { col, k: 1.15, sides: 7, rings: 4 });
+      for (const sg of [-1, 1]) {
+        B.beam('stone', at(sg * 0.15, 2.95, -0.2), at(sg * 0.95, 3.2, -0.2), 0.055, 0.045, { col });
+        B.beam('stone', at(sg * 0.07, 2.0, -0.2), at(sg * 0.03, 1.2, -0.2), 0.07, 0.05, { col });
+      }
+      B.box('gold', F, -0.7, 0.7, y0 + 3.75, y0 + 3.9, -0.3, -0.13, { col: [0.55, 0.5, 0.36] });
+      robedFigure(B, sub(F, -0.6, 0, -0.35, 0.3), y0, 1.15, { col, kneel: true });
       return;
     }
-    const robe = kind === 3 ? 0.62 : 0.5;
-    B.prism('stone', F, 0, 0, robe, y0, y0 + 1.6, { sides: 7, r1: 0.32, col, mw: sm });
-    B.prism('stone', F, 0, 0, 0.34, y0 + 1.6, y0 + 2.15, { sides: 7, r1: 0.26, col, mw: sm });
-    B.prism('stone', F, 0, 0.03, 0.15, y0 + 2.15, y0 + 2.5, { sides: 6, r1: 0.12, col, cap: true, mw: sm });
-    // raised arm / staff
-    const Fa = sub(F, 0.32, 0, 0.1, 0);
-    B.box('stone', Fa, -0.08, 0.08, y0 + 1.5, y0 + 2.6 + r, -0.08, 0.08, { col });
-    if (kind === 1) {                                  // halo of stars (Nepomuk)
+    const robe = kind === 3 ? 1.18 : 1;
+    const Ff = sub(F, 0, 0, 0, (r - 0.5) * 0.5);
+    if (kind === 1) {                                  // Nepomuk: cross in his arms, halo of stars
+      robedFigure(B, Ff, y0, 2.3, { col, pose: 'cross', r: robe, cowl: true });
       for (let i = 0; i < 5; i++) {
-        const a = -0.6 + i * 0.3;
-        B.box('gold', F, Math.sin(a) * 0.38 - 0.04, Math.sin(a) * 0.38 + 0.04, y0 + 2.6 + Math.cos(a) * 0.3, y0 + 2.68 + Math.cos(a) * 0.3, -0.02, 0.06, { col: [0.5, 0.45, 0.3] });
+        const a = -0.9 + i * 0.45;
+        B.box('gold', Ff, Math.sin(a) * 0.36 - 0.04, Math.sin(a) * 0.36 + 0.04, y0 + 2.2 + Math.cos(a) * 0.32, y0 + 2.28 + Math.cos(a) * 0.32, -0.02, 0.06, { col: [0.5, 0.45, 0.3] });
       }
-    }
-    if (kind === 2) {                                  // kneeling second figure
-      B.prism('stone', F, -0.55, -0.3, 0.32, y0, y0 + 0.9, { sides: 6, r1: 0.24, col, mw: sm });
-      B.prism('stone', F, -0.55, -0.25, 0.12, y0 + 0.9, y0 + 1.2, { sides: 6, col, cap: true, mw: sm });
+    } else if (kind === 2) {                           // preaching saint, arm raised, a kneeling figure
+      robedFigure(B, Ff, y0, 2.35, { col, pose: 'raise', r: robe, lean: -0.04 });
+      robedFigure(B, sub(F, -0.62, 0, -0.3, 0.5), y0, 1.2, { col, kneel: true });
+    } else {                                           // bishop with a crozier, or a reading saint
+      robedFigure(B, Ff, y0, 2.4, { col, pose: r > 0.87 ? 'book' : 'staff', r: robe, cowl: r > 0.87 });
     }
   }
 
   // ---- bridge towers ------------------------------------------------------
-  const TWR = [0.3, 0.29, 0.27];           // darker albedo: tower silhouettes survive the fog
-  const tBox = (F, u0, u1, y0, y1, v0, v1, col = TWR, skip = 'bottom') => B.box('stoneFar', F, u0, u1, y0, y1, v0, v1, { mw: sm, mh: sm, col, skip });
+  // Bridge towers: weathered sandstone that reads as lit stone at dusk (albedo ≈ 0.2 with the
+  // stoneLight map); the thin-fog material still keeps their silhouettes in the distance.
+  const TWR0 = [0.3, 0.29, 0.27];          // the Powder Tower keeps the soot-black stone
+  const TWR = [0.8, 0.76, 0.7], TRING = [0.92, 0.88, 0.82], TBAND = [0.9, 0.86, 0.8];
+  const tBox = (F, u0, u1, y0, y1, v0, v1, col = TWR, skip = 'bottom') => B.box('stoneLightFar', F, u0, u1, y0, y1, v0, v1, { mw: sm, mh: sm, col, skip });
   function gateTower(x0, x1, z0, z1, passZ0, passZ1, topH, roofH, kind = 'pointed') {
     const F = frame(0, 0, 0, 0);
     const w = passZ1 - passZ0, zm = (passZ0 + passZ1) / 2, ys = 4.2, yA = ys + archRise(w, kind) + 0.9;
@@ -205,12 +227,12 @@ export function buildLandmarks(W) {
     tBox(F, x0, x1, -0.5, yA, passZ1, z1); solid((x0 + x1) / 2, (z1 + passZ1) / 2, (x1 - x0) / 2, (z1 - passZ1) / 2);
     // body over the passage + the Gothic arch with its vault
     tBox(F, x0, x1, yA, topH, z0, z1);
-    archway(F, x0, x1, zm, w, ys, yA, { kind, key: 'stoneFar', col: TWR, ringCol: [0.42, 0.4, 0.37] });
+    archway(F, x0, x1, zm, w, ys, yA, { kind, key: 'stoneLightFar', col: TWR, ringCol: TRING });
     solid((x0 + x1) / 2, (z0 + z1) / 2, (x1 - x0) / 2, (z1 - z0) / 2, 0, ys + 1.6, topH + roofH);
     // string courses, a statue gallery band and the parapet walk
-    tBox(F, x0 - 0.3, x1 + 0.3, yA + 0.4, yA + 0.9, z0 - 0.3, z1 + 0.3, [0.4, 0.38, 0.35]);
-    tBox(F, x0 - 0.25, x1 + 0.25, yA + 7.5, yA + 7.9, z0 - 0.25, z1 + 0.25, [0.4, 0.38, 0.35]);
-    gallery(F, x0, x1, z0, z1, topH + 0.6, TWR, 'stoneFar');
+    tBox(F, x0 - 0.3, x1 + 0.3, yA + 0.4, yA + 0.9, z0 - 0.3, z1 + 0.3, TBAND);
+    tBox(F, x0 - 0.25, x1 + 0.25, yA + 7.5, yA + 7.9, z0 - 0.25, z1 + 0.25, TBAND);
+    gallery(F, x0, x1, z0, z1, topH + 0.6, TWR, 'stoneLightFar');
     // dark lancet windows with a pointed head
     for (const x of [x0 - 0.04, x1 + 0.04]) {
       const e = x > (x0 + x1) / 2;
@@ -238,20 +260,20 @@ export function buildLandmarks(W) {
     tBox(F, -54.6, -45.6, -0.5, 30, -15, -5.6);
     solid(-50.1, -10.3, 4.5, 4.7);
     gothicSpire(F, -50.1, -10.3, 4.5, 30.6, 46, 'slateFar', [0.55, 0.55, 0.6]);
-    gallery(F, -54.6, -45.6, -15, -5.6, 30.6, TWR, 'stoneFar');
+    gallery(F, -54.6, -45.6, -15, -5.6, 30.6, TWR, 'stoneLightFar');
     for (const x of [-54.64, -45.56]) for (let y = 12; y < 27; y += 7) {
       const e = x > -50, pts = [[x, y, -11], [x, y, -9.6], [x, y + 3, -9.6], [x, y + 3.7, -10.3], [x, y + 3, -11]];
       B.polyF('dark', pts, [e ? 1 : -1, 0, 0]);
     }
     tBox(F, -54.6, -45.6, -0.5, 18, 5.6, 12);
     solid(-50.1, 8.8, 4.5, 3.2);
-    B.gable('roof', sub(F, -50.1, 0, 8.8, Math.PI / 2), -3.2, 3.2, -4.5, 4.5, 18, 4, { mw: rm, mh: rm, gkey: 'stoneFar', gcol: TWR });
+    B.gable('roof', sub(F, -50.1, 0, 8.8, Math.PI / 2), -3.2, 3.2, -4.5, 4.5, 18, 4, { mw: rm, mh: rm, gkey: 'stoneLightFar', gcol: TWR });
     // the gateway between them: a Gothic pointed arch with a vaulted passage
     const w = 11.2, ys = 3.6, yA = ys + archRise(w, 'pointed', 0.62) + 0.7;
     tBox(F, -54.6, -45.6, yA, yA + 3.5, -5.6, 5.6);
-    archway(F, -54.6, -45.6, 0, w, ys, yA, { kind: 'pointed', k: 0.62, key: 'stoneFar', col: TWR, ringCol: [0.42, 0.4, 0.37], jambs: false });
+    archway(F, -54.6, -45.6, 0, w, ys, yA, { kind: 'pointed', k: 0.62, key: 'stoneLightFar', col: TWR, ringCol: TRING, jambs: false });
     solid(-50.1, 0, 4.5, 5.6, 0, ys + 1.6, yA + 7);
-    B.gable('roof', sub(F, -50.1, 0, 0, Math.PI / 2), -5.6, 5.6, -4.5, 4.5, yA + 3.5, 3, { mw: rm, mh: rm, gkey: 'stoneFar', gcol: TWR });
+    B.gable('roof', sub(F, -50.1, 0, 0, Math.PI / 2), -5.6, 5.6, -4.5, 4.5, yA + 3.5, 3, { mw: rm, mh: rm, gkey: 'stoneLightFar', gcol: TWR });
     reserveAxis(-55.5, -45, -16, 13);
   }
 
@@ -419,7 +441,7 @@ export function buildLandmarks(W) {
       solid(cx, czz, hu, (hv - pass) / 2, rot);
     }
     tBox(F, -hu, hu, yA, 44, -hv, hv);
-    archway(F, -hu, hu, 0, pass * 2, ys, yA, { kind: 'pointed', key: 'stoneFar', col: TWR, ringCol: [0.42, 0.4, 0.37] });
+    archway(F, -hu, hu, 0, pass * 2, ys, yA, { kind: 'pointed', key: 'stoneFar', col: TWR0, ringCol: [0.42, 0.4, 0.37] });
     solid(PT.x, cz, hu, hv, rot, ys + 1.6, 70);
     for (const u of [-hu - 0.02, hu + 0.02]) {
       const e = u > 0;
@@ -430,10 +452,10 @@ export function buildLandmarks(W) {
       }
     }
     for (let y = 12; y < 44; y += 10) tBox(F, -hu - 0.25, hu + 0.25, y, y + 0.4, -hv - 0.25, hv + 0.25, [0.4, 0.38, 0.35]);
-    gallery(F, -hu, hu, -hv, hv, 44.6, TWR, 'stoneFar');
-    B.gable('slateFar', sub(F, 0, 0, 0, Math.PI / 2), -hv, hv, -hu, hu, 44.6, 14, { mw: 2, mh: 2, gkey: 'stoneFar', gcol: TWR, over: 0.2, col: [0.6, 0.6, 0.66] });
+    gallery(F, -hu, hu, -hv, hv, 44.6, TWR0, 'stoneFar');
+    B.gable('slateFar', sub(F, 0, 0, 0, Math.PI / 2), -hv, hv, -hu, hu, 44.6, 14, { mw: 2, mh: 2, gkey: 'stoneFar', gcol: TWR0, over: 0.2, col: [0.6, 0.6, 0.66] });
     for (const v of [-hv, hv]) for (const u of [-hu, hu]) {
-      B.prism('stoneFar', F, u, v, 0.6, 40, 47, { sides: 6, col: TWR });
+      B.prism('stoneFar', F, u, v, 0.6, 40, 47, { sides: 6, col: TWR0 });
       B.spire('slateFar', F, u, v, 0.6, 47, 53, { col: [0.6, 0.6, 0.66] });
     }
     B.spire('slateFar', F, 0, 0, 1, 58, 66, { col: [0.6, 0.6, 0.66] });
@@ -489,10 +511,18 @@ export function buildLandmarks(W) {
     for (const u of [-3.3, 3.3]) {
       B.box('stoneLight', F, u - 1.5, u + 1.5, 0.45, 2.85, -0.12, 0, { mw: sm, mh: sm, col: DJ, skip: 'bottom,back' });
       B.box('dark', F, u - 1.3, u + 1.3, 0.6, 2.7, -0.14, -0.12, { skip: 'bottom,back' });
-      for (let k = 0; k < 3; k++) {
-        const Fb = sub(F, u, 1.0 + k * 0.6, -0.2, (k - 1) * 0.04);
-        B.box('plank', Fb, -1.45, 1.45, -0.12, 0.12, -0.04, 0.03, { mw: 1, mh: 2, col: [1.4, 1.3, 1.2] });
+      // boards nailed across: weathered grey-brown planks of uneven width and length with
+      // narrow dark gaps, a diagonal brace, nail heads
+      const PR = L.rng(Math.round(u * 10) + 77);
+      for (let y = 0.66; y < 2.62;) {
+        const hh = 0.24 + PR() * 0.1, k = 1.9 + PR() * 0.7, cw = [k, k * 0.92, k * 0.8];
+        const Fb = sub(F, u + (PR() - 0.5) * 0.15, y + hh / 2, -0.17 - PR() * 0.02, (PR() - 0.5) * 0.05);
+        B.box('plank', Fb, -1.42 - PR() * 0.12, 1.42 + PR() * 0.12, -hh / 2, hh / 2, -0.035, 0.03, { mw: 1, mh: 2, col: cw });
+        for (const nu of [-1.25, 1.25]) B.box('metal', Fb, nu - 0.015, nu + 0.015, -0.015, 0.015, -0.05, -0.035, { col: [0.6, 0.5, 0.42] });
+        y += hh + 0.035 + PR() * 0.04;
       }
+      const sd = u < 0 ? 1 : -1;
+      B.beam('plank', P(F, u - sd * 1.2, 0.8, -0.24), P(F, u + sd * 1.2, 2.5, -0.24), 0.09, 0.09, { sides: 4, col: [2.2, 2.0, 1.7] });
     }
     // hanging sign on a wall bracket beyond the board
     const su = -5.75;

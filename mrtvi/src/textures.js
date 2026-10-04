@@ -60,7 +60,7 @@ export function makeTextures(game) {
   }
   T.blood.premultiplyAlpha = false;
   // Warm the variant caches the world/dead will ask for, so the cost lands at boot.
-  for (let i = 0; i < 8; i++) T.plaster(i);
+  for (let i = 0; i < 12; i++) T.plaster(i);
   for (let i = 0; i < 4; i++) { T.facadeWide(i); T.skin(i); }
   for (let i = 0; i < 6; i++) { T.poster(i); T.cloth(i); }
   T.genMs = Math.round(performance.now() - t0);
@@ -73,7 +73,7 @@ export function previewWall(game) {
   const THREE = game.THREE, T = game.tex || makeTextures(game);
   const list = [];
   for (const k of ['cobble', 'paving', 'asphalt', 'stone', 'stoneLight', 'roof', 'slate', 'plank', 'rust', 'wall', 'interiorWall', 'tiles', 'blood', 'sign_lekarna', 'clockFace']) list.push([k, T[k]]);
-  for (let i = 0; i < 8; i++) list.push([`plaster(${i})`, T.plaster(i)]);
+  for (let i = 0; i < 12; i++) list.push([`plaster(${i})`, T.plaster(i)]);
   for (let i = 0; i < 4; i++) list.push([`facadeWide(${i})`, T.facadeWide(i)]);
   for (let i = 0; i < 6; i++) list.push([`poster(${i})`, T.poster(i)]);
   for (let i = 0; i < 4; i++) list.push([`skin(${i})`, T.skin(i)]);

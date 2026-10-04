@@ -152,7 +152,7 @@ export function create(game) {
   function torch(on) { P?.toggleFlashlight?.(on); }
   // a practical key light for staged shots (firelight on the medic); always in the scene so the
   // light count, and so the compiled shaders, never change mid-trailer
-  const key = new THREE.PointLight(0xff8a3c, 0, 12, 1.6);
+  const key = new THREE.PointLight(0xffd2a8, 0, 12, 1.6);    // neutral warm: firelight without turning skin pink
   const rim = new THREE.PointLight(0x9fb4d8, 0, 40, 1);       // cool back/rim light to lift the dead off the dark
   game.scene.add(key, rim);
   let lightR = {}, spot0 = null;
@@ -390,7 +390,7 @@ export function create(game) {
   {
     const M = L.MEDIC, Y = L.HILL.height;
     part('camp', 0, {
-      fog: 0.6, fov: 40, torch: false, hand: 0.4, hour: 19.8, key: [M.x + 1.1, Y + 1.3, M.z + 1.0, 14],
+      fog: 0.6, fov: 40, torch: false, hand: 0.4, hour: 19.8, key: [M.x + 1.1, Y + 1.3, M.z + 1.0, 7], rim: [M.x - 1.6, Y + 2.0, M.z - 2.3, 7],
       stage() { park(-292, -14, Math.PI / 2); },
       cam(lt) {
         const u = ease(lt / 6);
