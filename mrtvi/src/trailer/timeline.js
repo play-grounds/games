@@ -8,8 +8,8 @@ export const SHOTS = [
   { id: 'clock',    t: 25, dur: 8,  hour: 19.0, note: 'Slow tilt up the clock tower to the dial; the bell strikes (real chime).' },
   { id: 'square',   t: 33, dur: 9,  hour: 19.0, note: 'High angle over Old Town Square: the dead stop, turn, and drift in toward the clock.' },
   { id: 'bridge',   t: 42, dur: 8,  hour: 19.6, note: 'Low tracking shot along Charles Bridge through a lane in the horde; statues overhead.' },
-  { id: 'cuts',     t: 50, dur: 8,  hour: 21,   note: 'Fast cuts (~1.5 s each): flashlight on a face at 2 m; muzzle flash in an alley; a runner lunging; a body falling.' },
-  { id: 'nerudova', t: 58, dur: 8,  hour: 20.5, note: 'Climbing Nerudova at night, flashlight on cobbles, the castle and its fires above.' },
+  { id: 'cuts',     t: 50, dur: 8,  hour: 21,   note: 'Fast cuts (~1.5 s each): a silent crowbar kill from behind; muzzle flash in an alley; a runner lunging; a body falling.' },
+  { id: 'nerudova', t: 58, dur: 8,  hour: 20.5, note: 'Running up Nerudova with the dead behind; through the castle gate as it slams shut at 64.5.' },
   { id: 'camp',     t: 66, dur: 6,  hour: 20.5, note: 'The camp: fires, the medic turns toward camera.' },
   { id: 'black',    t: 72, dur: 2,  hour: 20.5, note: 'Black. Silence.' },
   { id: 'title',    t: 74, dur: 6,  hour: 20.5, note: 'MRTVÍ logo over a dim slow drift; HRÁT / PLAY button appears and stays.' },
@@ -35,6 +35,7 @@ export const CUES = [
   { t: 42,   kind: 'riser' },             // builds through the bridge
   { t: 50,   kind: 'hit' }, { t: 51.5, kind: 'hit' }, { t: 53, kind: 'hit' }, { t: 54.5, kind: 'hit' }, { t: 56, kind: 'hit' },
   { t: 58,   kind: 'riser' },
+  { t: 64.5, kind: 'hit' },               // the castle gate slams shut behind you
   { t: 72,   kind: 'stop' },              // hard cut to silence
   { t: 74,   kind: 'logo' },              // one huge bell + sub boom under the logo, long tail
 ];

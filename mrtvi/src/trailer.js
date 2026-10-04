@@ -71,7 +71,7 @@ const easeOut = (u) => { u = clamp(u, 0, 1); return 1 - (1 - u) * (1 - u); };
 const wob = (t, s) => (Math.sin(t * 1.13 + s) * 0.5 + Math.sin(t * 2.37 + s * 1.7) * 0.3 + Math.sin(t * 4.71 + s * 2.3) * 0.2);
 const LOGO_T = 74;
 // per-card overrides of timeline.js placement/timing (keyed by card start time)
-const CARD_FIX = { 19.5: { dur: 2.7, pos: 'lowleft' }, 28: { pos: 'low' }, 68: { pos: 'low' } };
+const CARD_FIX = { 19.5: { dur: 2.7, pos: 'lowleft' }, 28: { pos: 'low' }, 61: { pos: 'low' }, 68: { pos: 'low' } };
 
 export function create(game) {
   const { THREE, camera, layout: L, params } = game;
@@ -143,7 +143,8 @@ export function create(game) {
   // ---------- staging helpers ----------
   const P = game.player;
   let ff = false;                      // fast-forwarding during seek: no sound, no flashes
-  const spawn = (x, z, o = {}) => (D ? D.spawn(x, z, { state: 1, ...o }) : -1);
+  // crawlers only where asked: a recycled slot's look can otherwise roll a crawler for a hero walker
+  const spawn = (x, z, o = {}) => (D ? D.spawn(x, z, { state: 1, ...o, crawler: !!o.crawler }) : -1);
   const walkTo = (id, x, z, v = 0.7) => { if (id >= 0) D.set(id, { state: D.STATES.INVEST, tx: x, tz: z, v }); };
   // blind dead chase their tx/tz once close: point them at the parked player
   const chase = (id) => { if (id >= 0 && P) D.set(id, { state: D.STATES.CHASE, tx: P.pos.x, tz: P.pos.z, v: 1 }); };
@@ -156,7 +157,69 @@ export function create(game) {
   const rim = new THREE.PointLight(0x9fb4d8, 0, 40, 1);       // cool back/rim light to lift the dead off the dark
   game.scene.add(key, rim);
   let lightR = {}, spot0 = null;
-  let fogMul = 1, fogBase = null, fogSet = -1, fov = 55, showGun = false, gunFlashT = 0;
+  // the river's specular blob blows out on the wide shots: a rougher sheen for the trailer
+  { const w = game.scene.getObjectByName('world:water'); if (w?.material && 'roughness' in w.material) w.material.roughness = Math.max(w.material.roughness, 0.7); }
+  const GATE_T = 61.9, leaves = [];
+  game.scene.traverse((o) => { if (o.name === 'world:gateLeaf') leaves.push({ g: o, open: o.rotation.y }); });
+  function gateLeaves() {
+    // ease-in: the leaves accelerate into the impact, which lands exactly on the 64.5 hit
+    const u = clamp((T - GATE_T) / 2.6, 0, 1), k = u * u * u;
+    for (const l of leaves) l.g.rotation.y = l.open * (1 - k);
+    // dust puff off the sill and the meeting stiles on contact
+    const du = (T - GATE_T - 2.6) / 1.4;
+    dust.visible = du >= 0 && du < 1 && T < 66;
+    if (dust.visible) {
+      const pa = dust.geometry.attributes.position, e = 1 - (1 - du) * (1 - du);
+      for (let n = 0; n < DUST_N; n++) {
+        const s0 = dustSeed[n * 3], s1 = dustSeed[n * 3 + 1], s2 = dustSeed[n * 3 + 2];
+        const low = n % 4 !== 0;                             // mostly a low roll off the sill, some shaken down the seam
+        pa.setXYZ(n, GX - 0.25 - e * (0.3 + 1.8 * s0), GY + (low ? s2 * 0.35 : s2 * 4) + e * (0.15 + 0.7 * s1),
+          low ? GZD + (s1 - 0.5) * 7.6 : GZD + (s1 - 0.5) * 0.5);
+      }
+      pa.needsUpdate = true;
+      dust.material.opacity = 0.22 * (1 - du) * (1 - du);
+    }
+  }
+  // dust (points) and a growing blood pool: meshes only, so the light count never changes
+  const DUST_N = 160, GX = L.CASTLE.x1 - 4, GY = H(GX - 0.5, L.CASTLE_GATE.z), GZD = L.CASTLE_GATE.z;
+  const dustSeed = new Float32Array(DUST_N * 3);
+  { const R = L.rng(6454); for (let n = 0; n < dustSeed.length; n++) dustSeed[n] = R(); }
+  const softDot = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(c);
+  })();
+  const dust = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(DUST_N * 3), 3)),
+    new THREE.PointsMaterial({ color: 0x8f877a, size: 1.1, map: softDot, transparent: true, opacity: 0, depthWrite: false }));
+  dust.frustumCulled = false; dust.visible = false; dust.name = 'trailer:dust';
+  game.scene.add(dust);
+  const poolTex = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const g = c.getContext('2d');
+    const R = L.rng(5150);
+    for (let n = 0; n < 9; n++) {
+      const x = 64 + (R() - 0.5) * 40, y = 64 + (R() - 0.5) * 40, r = 18 + R() * 26;
+      const gr = g.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, 'rgba(70,4,3,0.95)'); gr.addColorStop(0.7, 'rgba(55,3,2,0.85)'); gr.addColorStop(1, 'rgba(40,2,2,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 6.3); g.fill();
+    }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  const pool = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6).rotateX(-Math.PI / 2),
+    new THREE.MeshLambertMaterial({ map: poolTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }));
+  pool.visible = false; pool.name = 'trailer:pool';
+  game.scene.add(pool);
+  function bloodPool(lt) {
+    const pp = cur?.pool;
+    pool.visible = !!pp && lt > pp[2];
+    if (!pool.visible) return;
+    const u = clamp((lt - pp[2]) / 1.1, 0, 1), k = 1 - (1 - u) * (1 - u);
+    pool.position.set(pp[0], H(pp[0], pp[1]) + 0.02, pp[1]);
+    pool.scale.setScalar(0.08 + 0.92 * k);
+  }
+  let fogMul = 1, fogBase = null, fogSet = -1, fov = 55, showGun = false, showBar = false, gunFlashT = 0;
 
   // A part is a staged piece of a shot: [start, stage(), cam(lt) → {p, l, roll}, beats]
   // Times inside parts are local to the shot.
@@ -169,17 +232,16 @@ export function create(game) {
 
   // 1. river — high, slow drift over the Vltava from the south: bridge and castle as silhouettes
   {
-    // hook: a walker at the bridge parapet in the foreground, then crane up and back over the river
-    const cp = curve([[32.3, 0.95, 2.0], [33.5, 4.5, 12], [38, 20, 62]]);
-    const cl = curve([[-60, 5, -4], [-75, 7, -8], [-100, 10, -12]]);
+    // high over the river, descending slowly towards the horde feeding on the deck
+    const cp = curve([[22, 30, 92], [10, 21, 58], [3, 14, 33]]);
+    const cl = curve([[-12, 2, 0], [-26, 3, -2], [-48, 7, -5]]);
     part('river', 0, {
-      fog: 0.35, fov: 46, torch: false, rim: [26.8, 2.6, 4.4, 30],
+      fog: 0.35, fov: 46, torch: false, rim: [-6, 7, 0, 160],
       stage() {
         park(60, 0, Math.PI / 2);
         bridgeHorde();
-        spawn(29.0, 3.3, { h: face(29.0, 3.3, -60, -30) });
       },
-      cam(lt) { const u = lt / 8; along(cp, u * u * (1.6 - 0.6 * u), _p); along(cl, u, _l); return {}; },
+      cam(lt) { const u = ease(lt / 8) * 0.85 + lt / 8 * 0.15; along(cp, u, _p); along(cl, u, _l); return {}; },
     });
   }
 
@@ -321,14 +383,25 @@ export function create(game) {
     });
   }
 
-  // 7. cuts — fast: torch on a face at 2 m; muzzle flash in an alley; a runner lunging; a body falling; at the lens
+  // 7. cuts — fast: a silent crowbar kill from behind; muzzle flash in an alley; a runner lunging; a body falling; at the lens
   {
-    // 7a — torch on a face, Husova alley
+    // 7a — stealth kill in Husova: crouched behind an unaware walker, the crowbar chops, it crumples without a sound
     let a = -1;
     part('cuts', 0, {
-      fog: 1, fov: 44, torch: true, hand: 1.2,
-      stage() { park(93.5, -27.8, 0); a = spawn(93.8, -30.2, { h: face(93.8, -30.2, 93.5, -27.8) }); walkTo(a, 93.6, -28.6, 0.3); },
-      cam(lt) { _p.set(93.5, 1.62, -27.8 + lt * 0.15); _l.set(93.8, 1.5, -31); return {}; },
+      fog: 1, fov: 60, torch: true, hand: 0.9, bar: true,
+      stage() {
+        park(93.6, -31.4, 0); barReady();
+        a = spawn(93.7, -33.2, { h: Math.PI + 0.15 });           // facing away, up the alley
+      },
+      beats: [[0.3, () => swing(a)], [0.75, () => finish(a)]],
+      pool: [93.7, -34.0, 0.62],                                // grows from under the head after the blow
+      every(lt) { if (a >= 0 && lt < 0.3) D.set(a, { state: D.STATES.IDLE }); },
+      cam(lt) {
+        const k = sm(0, 0.35, lt);
+        _p.set(93.6, 1.15 + 0.05 * k, -31.4 - 0.3 * k);
+        _l.set(93.72, 1.25 - 0.45 * sm(0.55, 1.3, lt), -35);
+        return { roll: 0.02 * sm(0.3, 0.5, lt) };
+      },
     });
     // 7b — muzzle flash in an alley (Liliová), the pistol bucks, the walker staggers
     let b = -1, b2 = -1;
@@ -361,27 +434,100 @@ export function create(game) {
     let e = -1;
     part('cuts', 6, {
       fog: 1, fov: 52, torch: true, hand: 1.6,
-      stage() { park(176, 52, Math.PI); e = spawn(175.5, 49, { h: 0 }); chase(e); },
-      cam(lt) { const k = lt - 6; _p.set(176, 1.62 - k * 0.05, 52 + k * 0.25); _l.set(175.6, 1.45, 48); return { roll: -k * 0.04 }; },
+      // the player is parked behind the lens so the walker reaches for the camera but never gets a swing in;
+      // the camera backs off to hold it ~1.3 m away, arms out
+      stage() { park(176, 56.5, Math.PI); e = spawn(175.6, 49.2, { h: 0 }); chase(e); },
+      cam(lt) {
+        const k = lt - 6, wz = e >= 0 ? D.info(e).z : 49;
+        const wx = e >= 0 ? D.info(e).x : 175.6;
+        _p.set(176, 1.62 - k * 0.05, Math.max(52 + k * 0.25, wz + 1.6)); _l.set(wx, 1.4, wz - 0.4);
+        return { roll: -k * 0.04 };
+      },
     });
   }
 
-  // 8. nerudova — climbing at night, torch on the cobbles, the castle and its fires above
+  // 8. nerudova — running up the hill with the dead behind; through the castle gate as it slams shut (64.5)
   {
+    const nz = (x) => -10 + (x + 175) * 0.2;                 // Nerudova centreline (z) for x in −205..−175
+    const run = (lt) => -178 - 2.5 * lt, runners = [];                     // ~3 m/s: they stay a few metres behind
     part('nerudova', 0, {
-      fog: 0.42, fov: 54, torch: true, hand: 1, hour: 19.4, spot: 0.26,
+      fog: 0.42, fov: 60, torch: true, hand: 2.2, hour: 19.4, spot: 0.32,
       stage() {
-        park(-198, -14, Math.PI / 2);
-        for (const [x, z, h] of [[-207, -18.5, 1.4], [-213, -13.5, 1.9], [-219, -18, 1.6]]) spawn(x, z, { h, state: 1 });
-        walkTo(spawn(-203, -15, { h: 1.5 }), -190, -12, 0.6);
+        park(run(0), nz(run(0)), Math.PI / 2);
+        const R = L.rng(58);
+        runners.length = 0;
+        for (let k = 0; k < 7; k++) {
+          const x = -174.2 + k * 1.1 + R() * 1.0, z = nz(x) + (R() - 0.5) * 4.5;
+          const id = spawn(x, z, { h: -Math.PI / 2 }); chase(id); runners.push(id);
+        }
+      },
+      every(lt) {
+        const x = run(lt);
+        P?.teleport?.(x, nz(x), Math.PI / 2);                // the dead chase the lens
+        // ...but never closer than 2.5 m, or the look-back fills with one pale face
+        for (const id of runners) {
+          if (id < 0) continue;
+          const i = D.info(id);
+          if (i.hp > 0 && i.x < x + 2.5) D.set(id, { x: x + 2.5, z: i.z });
+        }
       },
       cam(lt) {
-        // climb for 6 s, tilting up off the torch pool to the castle gate; hold on the castle
-        const u = ease(lt / 6.2), x = -170 - 15 * u;
-        _p.set(x, H(x, -9) + 1.62 + Math.sin(lt * 5.4) * 0.03 * (1 - sm(5.5, 6.5, lt)), -9.6 - 2.2 * u);
-        const g = sm(0.8, 6.2, lt);
-        _l.set(-200 - 66 * g, H(x, -9) + 1.0 + (28 + 4 - H(x, -9) - 1.0) * g, -16 - 4 * g);
-        return { fov: 54 - 16 * sm(3, 7, lt) };
+        const x = run(lt), z = nz(x), y = H(x, z) + 1.55;
+        const stride = lt * 2 * Math.PI * 2.7;
+        _p.set(x, y + Math.abs(Math.sin(stride)) * 0.07, z + Math.sin(stride / 2) * 0.05);
+        if (lt < 2.5) {                                      // running uphill at the gate
+          _l.set(-266, 30, -20);
+          return { fov: 60 };
+        }
+        // a look back over the shoulder: they are right there
+        const k = sm(2.5, 2.8, lt);
+        _l.set(x + 12, H(x + 12, z) + 0.9 + 0.4 * (1 - k), z + 1.5 - 3 * k);
+        return { fov: 64, roll: 0.06 * Math.sin(lt * 9) };
+      },
+    });
+    // 61.9: the courier is inside with the medicine, world.js swings the leaves shut over 2.6 s
+    const GZ = L.CASTLE_GATE.z, XB = L.CASTLE.x1 - 4, Y = L.HILL.height, chasers = [];
+    part('nerudova', 3.9, {
+      fog: 0.42, fov: 56, torch: true, hand: 1.6, hour: 19.4, medicine: true, rim: [-252, H(-252, -20) + 4, -20, 60],
+      stage() {
+        park(-285, -20, -Math.PI / 2);
+        const R = L.rng(59);
+        chasers.length = 0;
+        // scripted run-in: all start behind (east of) the running camera; the leaders reach the wood
+        // exactly as the leaves meet (64.5), the rest pile up behind them
+        const GAP = [0, 0.12, 0.3, 0.9, 1.3, 1.8, 2.4, 3.0, 3.7];
+        for (let k = 0; k < 9; k++) {
+          const x0 = -256.6 + k * 0.75 + R() * 0.4, z0 = GZ + (R() - 0.5) * 3.2;
+          const x1 = XB + 0.75 + GAP[k], z1 = k < 3 ? GZ + (k - 1) * 0.75 : GZ + (R() - 0.5) * 5;
+          const id = spawn(x0, z0, { h: -Math.PI / 2 }); chase(id); chasers.push([id, x0, z0, x1, z1]);
+        }
+      },
+      every() {
+        // the gate is scenery with no collider, so the run is scripted and they are held on the outside face of
+        // the leaves; once it's shut they stay pressed against the wood, shoving
+        const u = clamp((T - GATE_T) / 2.6, 0, 1), k = u * (1.15 - 0.15 * u);
+        for (const [id, x0, z0, x1, z1] of chasers) {
+          if (id < 0) continue;
+          const i = D.info(id);
+          if (i.hp <= 0) continue;
+          const x = x0 + (x1 - x0) * k, z = z0 + (z1 - z0) * k;
+          if (u < 1 || i.x < x1) D.set(id, { x: Math.max(x, XB + 0.75), z, h: -Math.PI / 2 });
+        }
+      },
+      cam(lt) {
+        if (lt < 4.5) {                                      // through the gate at a run
+          const k = (lt - 3.9) / 0.6, x = -260.5 - 4.2 * k, stride = lt * 2 * Math.PI * 2.7;
+          _p.set(x, H(x, GZ) + 1.55 + Math.abs(Math.sin(stride)) * 0.07, GZ + 0.6 + Math.sin(stride / 2) * 0.05);
+          _l.set(x - 20, Y + 1.4, GZ + 1);
+          return { fov: 62 };
+        }
+        // reverse, from inside: the leaves swing in on the pursuers and meet on the hit
+        const k = lt - 4.5;
+        // the slam: a two-frame jolt on contact
+        const j = T >= GATE_T + 2.6 && T < GATE_T + 2.6 + 0.07 ? (Math.floor(T * 60) % 2 ? 1 : -1) : 0;
+        _p.set(XB - 9 + 0.3 * k, Y + 1.5 + 0.035 * j, GZ + 0.4 + 0.025 * j);
+        _l.set(XB + 12, Y - 0.4 - 0.05 * j, GZ);
+        return { fov: 50, roll: 0.01 * Math.sin(lt * 1.3) + 0.012 * j };
       },
     });
   }
@@ -390,7 +536,7 @@ export function create(game) {
   {
     const M = L.MEDIC, Y = L.HILL.height;
     part('camp', 0, {
-      fog: 0.6, fov: 40, torch: false, hand: 0.4, hour: 19.8, key: [M.x + 1.1, Y + 1.3, M.z + 1.0, 7], rim: [M.x - 1.6, Y + 2.0, M.z - 2.3, 7],
+      fog: 0.6, fov: 40, torch: false, hand: 0.4, hour: 19.8, medicine: true, key: [M.x + 1.1, Y + 1.3, M.z + 1.0, 7], rim: [M.x - 1.6, Y + 2.0, M.z - 2.3, 7],
       stage() { park(-292, -14, Math.PI / 2); },
       cam(lt) {
         const u = ease(lt / 6);
@@ -437,6 +583,19 @@ export function create(game) {
   }
   let settle = 0;
 
+  function barReady() {
+    if (!P) return;
+    P.select?.('crowbar');
+    P.stamina = 1;
+    for (let k = 0; k < 5; k++) P.update(0.1);      // finish the draw, clear any cooldown
+  }
+  // a real crowbar swing (keyframed viewmodel + dead.meleeHit stealth one-hit); finish() guarantees the kill
+  function swing(id) { if (!ff && P?.attack && P.weapon === 'crowbar') { P.stamina = 1; P.attack(); } else if (ff) finish(id); }
+  function finish(id) {
+    if (id < 0 || !game.dead) return;
+    const i = D.info(id);
+    if (i.hp > 0 && (i.state === 'idle' || i.state === 'wander' || i.state === 'invest' || i.state === 'chase')) game.dead.damage(id, 1000, { x: i.x - camera.position.x, y: 0, z: i.z - camera.position.z });
+  }
   function gunReady() {
     if (!P) return;
     P.select?.('pistol');
@@ -467,7 +626,9 @@ export function create(game) {
     cur = p;
     if (D) D.clear();
     allowChime = 0;
-    showGun = !!p.gun;
+    showGun = !!p.gun; showBar = !!p.bar;
+    if (game.state) game.state.hasMedicine = !!p.medicine;
+    if (game.interior?.caseMesh && !p.medicine) game.interior.caseMesh.visible = true;
     if (P && !p.gun && P.weapon !== 'crowbar') P.select('crowbar');
     fogMul = p.fog ?? 1;
     fov = p.fov ?? 55;
@@ -478,6 +639,7 @@ export function create(game) {
     try { p.stage?.(); } catch (e) { console.error('[trailer] stage', p.shot.id, e); }
     torch(!!p.torch);
     P?.update?.(0);
+    try { game.interior?.update?.(0); } catch { /* interior owns its errors */ }   // in/out on the cut frame, not one later
     // corpses settle without the clock running
     if (settle > 0 && game.dead) { const f = ff; ff = true; for (let k = 0; k < settle * 30; k++) game.dead.update(1 / 30); ff = f; }
     lastLT = p.at - 1e-4;
@@ -595,10 +757,10 @@ export function create(game) {
       if (rr) { rim.position.set(rr[0], rr[1], rr[2]); rim.intensity = rr[3]; } else rim.intensity = 0;
       // hide the player's hands except for the gun beats
       if (vm) {
-        vm.crowbar.visible = false;
+        vm.crowbar.visible = showBar;
         vm.pistol.visible = showGun;
         gunFlashT -= dt;
-        if (vm.flash) { vm.flash.visible = showGun && gunFlashT > 0; if (vm.flash.visible) vm.flash.material.rotation = lt * 37; }
+        if (vm.flash && !showGun) vm.flash.visible = false;
       }
       // fog: scale whatever atmos set for this hour
       const fog = game.scene.fog;
@@ -606,6 +768,8 @@ export function create(game) {
         if (fog.density !== fogSet) fogBase = fog.density;
         fogSet = fog.density = fogBase * fogMul;
       }
+      gateLeaves();
+      bloodPool(lt);
       if (playing) score?.update?.(T);
       overlay();
       game.time.t = T;              // grain, drizzle and flicker follow trailer time too

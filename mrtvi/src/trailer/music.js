@@ -52,7 +52,7 @@ export function renderScore(ctx, dest, t0, { from = 0 } = {}) {
   else cut.gain.value = 0;
   const main = S.gain(ctx, 1); main.connect(cut);
   // after the cuts: drop back, then a hard final push into the cut
-  curve(main.gain, (T) => 1 - 0.45 * sstep(57, 61, T) + 0.5 * sstep(68.5, 71.9, T) ** 1.3, 56, STOP, 30);
+  curve(main.gain, (T) => 1 - 0.45 * sstep(57, 61, T) + 0.3 * sstep(63.5, 64.5, T) + 0.7 * sstep(68.5, 71.9, T) ** 1.3, 56, STOP, 30);
   const hall = new ConvolverNode(ctx, { buffer: hallIR(ctx) }); hall.connect(S.gain(ctx, 0.5)).connect(cut);   // main's tail is cut too
   const mainWet = S.gain(ctx, 1); mainWet.connect(hall);
   const logoHall = new ConvolverNode(ctx, { buffer: hallIR(ctx, 9, 7) }); logoHall.connect(S.gain(ctx, 0.6)).connect(out);
@@ -114,6 +114,24 @@ export function renderScore(ctx, dest, t0, { from = 0 } = {}) {
     noise(B.white, T, T + 0.6).connect(S.filt(ctx, 'bandpass', 3200, 3)).connect(mt);
     for (const f of [523, 1187, 1913, 2741]) { const g = S.gain(ctx, 0); S.perc(g.gain, t, 0.001, 0.05 * k, 0.9); osc('sine', f, T, T + 1).connect(g).connect(mt); }
     send(mt, 0.5, 1, wet, bus);
+  }
+
+  // ---- castle gate slamming shut: a hotter braam + 38 Hz sub + heavy wood slam + creak tail ----
+  function gateSlam(T) {
+    const t = at(T);
+    hit(T, 0.8);
+    const sub = osc('sine', 52, T, T + 4); sub.frequency.setValueAtTime(52, t); sub.frequency.exponentialRampToValueAtTime(38, t + 0.25);
+    const sg = S.gain(ctx, 0); S.perc(sg.gain, t, 0.004, 0.9, 2.6); sub.connect(sg); send(sg, 1, 0.1);
+    const th = S.gain(ctx, 0); S.perc(th.gain, t, 0.002, 1.4, 0.35);
+    noise(B.brown, T, T + 0.5).connect(S.filt(ctx, 'lowpass', 260, 1.2)).connect(th);
+    const kn = S.gain(ctx, 0); S.perc(kn.gain, t, 0.001, 0.35, 0.06);           // wood knock
+    noise(B.white, T, T + 0.1).connect(S.filt(ctx, 'bandpass', 900, 1.5)).connect(kn).connect(th);
+    send(th, 1, 0.7);
+    // creak: rasping low saw with a wobbling pitch, bandpassed, fading over ~1.4 s
+    const cr = S.gain(ctx, 0); cr.gain.setValueAtTime(0, t + 0.12); cr.gain.linearRampToValueAtTime(0.05, t + 0.3); cr.gain.setTargetAtTime(0, t + 0.6, 0.35);
+    const co = osc('sawtooth', 70, T + 0.1, T + 2); co.frequency.setValueAtTime(70, t + 0.1); co.frequency.linearRampToValueAtTime(48, t + 1.6);
+    const wob = osc('sine', 13, T + 0.1, T + 2); wob.connect(S.gain(ctx, 9)).connect(co.frequency);
+    co.connect(S.filt(ctx, 'bandpass', 700, 4)).connect(cr); send(cr, 0.8, 0.5);
   }
 
   // ---- riser: noise sweep + rising shepard tones + accelerating pulse, ending on next cue ----
@@ -180,7 +198,7 @@ export function renderScore(ctx, dest, t0, { from = 0 } = {}) {
   CUES.forEach((c, i) => {
     if (c.kind === 'riser') { const next = CUES[i + 1]?.t ?? c.t + 8; if (next > from) riser(Math.max(c.t, 0), next); return; }
     const T = shotAt(c.t, c.kind === 'logo' ? 1.5 : 0.5); if (T == null) return;
-    if (c.kind === 'hit' && T < STOP) hit(T, T < 40 ? 0.35 : 0.42);
+    if (c.kind === 'hit' && T < STOP) { if (c.t > 60) gateSlam(T); else hit(T, T < 40 ? 0.35 : 0.42); }
     else if (c.kind === 'bell' && T < STOP) bell(T);
     else if (c.kind === 'logo') logoHit(T);
   });

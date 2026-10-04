@@ -56,3 +56,13 @@ Five adversarial critics (a bug hunter, a harsh first-time player, an art direct
 Along the way: 633k → 34k triangles in the start view, 16 → 8 constant lights, a 3.2 s shader stall gone, pause on lost pointer lock, pickups and healing, stealth kills, a late chase up Nerudova, a rebalanced synthesised mix.
 
 > go, ship
+
+## Trailer, second cut
+
+> plays great ... should we update the trailer?
+
+> go
+
+The trailer renders live, so it already showed the new art; it was re-cut to show the new play. The first fast cut became a silent crowbar kill from behind, and the Nerudova climb became a run with the dead behind you, ending inside the castle as the gate slams shut on them (with its own hit in the score). A trailer critic caught the dead walking through the closed gate and a few staging glitches; two director passes fixed them.
+
+> looks great! ship?
